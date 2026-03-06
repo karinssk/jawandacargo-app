@@ -1,0 +1,1634 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LINE OA System — Flow Simulator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #fff6f2;
+    --panel: #ffffff;
+    --panel-alt: #fff0ea;
+    --border: #ffd1c2;
+    --muted: #6b7280;
+    --text: #2d1f1b;
+    --accent: #f25c4d;
+    --accent-2: #f8b04e;
+    --shadow: 0 18px 50px rgba(241, 96, 79, 0.22);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Space Grotesk', 'Inter', system-ui, -apple-system, sans-serif;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(255, 200, 170, 0.35), transparent 32%),
+      radial-gradient(circle at 80% 0%, rgba(255, 114, 92, 0.35), transparent 32%),
+      linear-gradient(180deg, #fff6f2 0%, #ffece3 60%, #ffffff 100%);
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  h2 { letter-spacing: -0.02em; }
+
+  /* Layout shells */
+  .scene-enter { animation: sceneIn 0.35s ease-out; }
+  .scene-enter > div {
+    background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(255,244,238,0.92));
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+    color:#2d1f1b;
+  }
+  @keyframes sceneIn { from { opacity:0; transform:translateY(10px);} to { opacity:1; transform:translateY(0);} }
+
+  /* Force readable text on light cards */
+  .scene-enter .text-white { color:#2d1f1b !important; }
+  .scene-enter .text-gray-400 { color:#6b301e !important; }
+  .scene-enter .text-gray-500 { color:#6b7280 !important; }
+
+  /* Phone mock */
+  .phone {
+    width: 270px;
+    background: #ffffff;
+    border: 1px solid #ffd1c2;
+    border-radius: 32px;
+    box-shadow: 0 25px 55px rgba(242,92,77,0.2);
+    overflow: hidden;
+    position: relative;
+  }
+  .phone-notch { height: 18px; background:#0b111f; display:flex; align-items:center; justify-content:center; }
+  .phone-notch-pill { width:76px; height:12px; background:#050b16; border-radius: 8px; }
+  .phone-status { background:#0d1424; padding:6px 16px; display:flex; justify-content:space-between; font-size:10px; color:#7f8ba3; font-weight:600; border-bottom:1px solid #18233a; }
+  .phone-body { background:#0d1424; }
+
+  /* Realistic phone mock (Scene 4) */
+  .phone-real { width:280px; background:#0b111f; border:1px solid #1f2a3d; border-radius:34px; padding:12px; box-shadow:0 25px 60px rgba(0,0,0,0.45); position:relative; overflow:hidden; }
+  .phone-real::after { content:''; position:absolute; inset:6px; border-radius:30px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); pointer-events:none; }
+  .phone-notch-real { position:relative; height:32px; display:flex; align-items:center; justify-content:center; margin-bottom:8px; }
+  .phone-notch-real .pill { width:96px; height:16px; border-radius:10px; background:#000; box-shadow:0 6px 20px rgba(0,0,0,0.35); }
+  .phone-notch-real .status { position:absolute; inset:0; display:flex; align-items:center; justify-content:space-between; padding:0 14px; font-size:11px; color:#e7ecf3; font-weight:600; letter-spacing:0.02em; }
+  .phone-body-real { background:radial-gradient(circle at 30% 20%, rgba(255,255,255,0.08), transparent 30%), #0f172a; border-radius:22px; padding:10px; min-height:480px; display:flex; flex-direction:column; gap:12px; position:relative; overflow:hidden; }
+  .card-stack { position:relative; flex:1; display:flex; align-items:center; justify-content:center; }
+  .card-shadow { position:absolute; width:82%; height:72%; background:#0b111f; border-radius:20px; filter:blur(14px); transform:rotate(-4deg) translateY(10px); opacity:0.7; }
+  .dish-card { position:relative; width:86%; border-radius:20px; overflow:hidden; background:#fff; box-shadow:0 16px 40px rgba(0,0,0,0.35); transform:rotate(-3deg); }
+  .dish-photo { width:100%; height:180px; object-fit:cover; display:block; }
+  .dish-badges { position:absolute; top:12px; right:12px; display:flex; gap:8px; }
+  .chip { background:rgba(255,255,255,0.9); border-radius:16px; padding:6px 10px; font-size:11px; font-weight:700; color:#0f172a; box-shadow:0 6px 16px rgba(0,0,0,0.15); display:flex; align-items:center; gap:6px; }
+  .chip.red { color:#c0392b; }
+  .chip.amber { color:#d97706; }
+  .dish-content { padding:14px; }
+  .dish-title { font-size:20px; font-weight:800; color:#0f172a; letter-spacing:-0.02em; }
+  .dots { display:flex; gap:6px; margin:8px 0; }
+  .dot { width:10px; height:10px; border-radius:50%; background:#fbbf24; }
+  .dot.off { background:#e5e7eb; }
+  .meta { display:flex; align-items:center; gap:8px; font-size:12px; color:#374151; font-weight:600; }
+  .tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .tag-pill { background:#f4f4f5; border-radius:12px; padding:6px 10px; font-size:11px; font-weight:700; color:#1f2937; border:1px solid #e5e7eb; }
+  .action-row { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:auto; }
+  .action-btn { width:64px; height:64px; border-radius:22px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#e7ecf3; font-size:12px; border:1px solid #1f2a3d; background:#0b111f; box-shadow:0 8px 18px rgba(0,0,0,0.25); }
+  .action-btn.hot { background:linear-gradient(135deg,#fbbf24,#f59e0b); color:#0f172a; border:none; box-shadow:0 10px 24px rgba(245,158,11,0.35); }
+  .action-btn .icon { font-size:18px; line-height:1; }
+
+  /* Dark card for admin form (scene 9) */
+  .dark-card { background:#0b111f; color:#fefefe; border:1px solid #1f2a3d; }
+  .dark-card .form-label { color:#f8e1cf; }
+  .dark-card .browser-addr { color:#fefefe; background:#0b111f; border-color:#1f2a3d; }
+
+  /* Browser shell */
+  .browser { border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); border:1px solid var(--border); background: #fff; }
+  .browser-chrome { background:#fff3ed; padding:10px 14px; display:flex; align-items:center; gap:10px; border-bottom:1px solid #ffd1c2; }
+  .dot { width:10px; height:10px; border-radius:50%; background:#f25c4d; }
+  .browser-addr { background:#fff; flex:1; border-radius:8px; padding:6px 12px; font-size:11px; color:#b45309; font-family:monospace; border:1px solid #ffd1c2; }
+  .browser-body { background:#fffaf6; color:var(--text); }
+
+  /* LINE UI */
+  .line-header { background: linear-gradient(135deg,#f25c4d,#f8b04e); padding:10px 12px; display:flex; align-items:center; gap:10px; color:#2d1f1b; font-weight:700; }
+  .line-avatar { width:34px; height:34px; border-radius:12px; background:#fff3ed; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:#f25c4d; }
+  .line-chat-bg { background: #fff6f2; padding: 12px; min-height: 340px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; border-top:1px solid #ffd1c2; }
+  .line-msg-oa { display:flex; align-items:flex-end; gap:6px; }
+  .line-msg-oa .bubble { background:#ffffff; border:1px solid #ffd1c2; border-radius:12px; padding:10px 12px; font-size:12px; line-height:1.6; color:#2d1f1b; max-width:200px; box-shadow:none; white-space:pre-line; }
+  .line-msg-self { display:flex; justify-content:flex-end; align-items:flex-end; gap:4px; }
+  .line-msg-self .bubble { background:linear-gradient(135deg,#f25c4d,#f8b04e); border-radius:12px; padding:10px 12px; font-size:12px; color:#2d1f1b; max-width:180px; }
+  .line-time { font-size:9px; color:#9f7f73; margin-bottom:2px; }
+  .line-input { background:#fff3ed; padding:10px 12px; display:flex; gap:10px; align-items:center; border-top:1px solid #ffd1c2; }
+  .line-input input { flex:1; background:#ffffff; border:1px solid #ffd1c2; border-radius:14px; padding:8px 12px; font-size:12px; color:#2d1f1b; outline:none; }
+  .line-send-btn { background:linear-gradient(135deg,#f25c4d,#f8b04e); color:#2d1f1b; border:none; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:12px; }
+
+  /* Admin shell */
+  .admin-sidebar { width:180px; background:#0b111f; min-height:500px; padding:16px 0; flex-shrink:0; border-right:1px solid #1f2a3d; }
+  .sidebar-logo { padding:0 16px 16px; border-bottom:1px solid #1f2a3d; margin-bottom:8px; }
+  .sidebar-logo .logo-icon { width:30px; height:30px; background:linear-gradient(135deg,#3dd39e,#60e2b5); border-radius:10px; display:flex; align-items:center; justify-content:center; color:#0d171f; font-weight:700; font-size:12px; }
+  .nav-item { padding:8px 16px; display:flex; align-items:center; gap:8px; font-size:12px; color:#9f7f73; cursor:pointer; transition:all .15s ease; letter-spacing:-0.01em; }
+  .nav-item:hover, .nav-item.active { background:#fff3ed; color:#2d1f1b; }
+  .nav-item.active { border-left:3px solid var(--accent); }
+
+  /* Admin content */
+  .admin-content { flex:1; background:#0f172a; color:var(--text); overflow:hidden; }
+  .admin-topbar { background:#0b111f; border-bottom:1px solid #1f2a3d; padding:12px 20px; display:flex; align-items:center; justify-content:space-between; }
+  .admin-body { padding:20px; }
+
+  /* Stat cards */
+  .stat-card { background:#fff; border-radius:12px; padding:14px; border:1px solid #ffd1c2; box-shadow:0 8px 20px rgba(242,92,77,0.12); }
+  .stat-val { font-size:26px; font-weight:800; color:#f25c4d; }
+  .stat-label { font-size:11px; color:#9f7f73; margin-top:4px; }
+
+  /* Tables */
+  .data-table { width:100%; border-collapse:collapse; font-size:11px; color:#2d1f1b; }
+  .data-table th { background:#fff3ed; padding:9px 10px; text-align:left; font-weight:700; color:#f25c4d; border-bottom:1px solid #ffd1c2; white-space:nowrap; }
+  .data-table td { padding:9px 10px; border-bottom:1px solid #ffe1d6; color:#4b4b4b; white-space:nowrap; }
+  .data-table tr:hover td { background:#fff7f3; }
+  .badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; border:1px solid transparent; letter-spacing:0.01em; }
+  .badge-confirmed { background:rgba(242,92,77,0.15); color:#f25c4d; border-color:rgba(242,92,77,0.25); }
+  .badge-pending { background:rgba(248,176,78,0.18); color:#d97706; border-color:rgba(248,176,78,0.28); }
+  .badge-unconfirmed { background:rgba(248,113,113,0.12); color:#b91c1c; border-color:rgba(248,113,113,0.2); }
+  .badge-vat { background:rgba(255,243,237,0.8); color:#b45309; border-color:#ffd1c2; }
+  .badge-green { background:rgba(76,181,94,0.12); color:#15803d; border-color:rgba(76,181,94,0.18); }
+
+  /* Form */
+  .form-input, .form-select {
+    border:1px solid #ffd1c2;
+    border-radius:10px;
+    padding:9px 12px;
+    font-size:12px;
+    width:100%;
+    color:#2d1f1b;
+    background:#fff;
+    outline:none;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  .form-input:focus, .form-select:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(242,92,77,0.18); }
+  .form-label { font-size:11px; font-weight:700; color:#b45309; margin-bottom:6px; display:block; letter-spacing:0.02em; text-transform:uppercase; }
+  .btn-primary { background:linear-gradient(135deg,#f25c4d,#f8b04e); color:#2d1f1b; border:none; border-radius:10px; padding:9px 16px; font-size:12px; font-weight:800; cursor:pointer; transition:transform .12s ease, box-shadow .12s ease; }
+  .btn-secondary { background:#fff3ed; color:#b45309; border:1px solid #ffd1c2; border-radius:10px; padding:9px 16px; font-size:12px; font-weight:700; cursor:pointer; transition:transform .12s ease, border-color .12s ease; }
+  .btn-green-outline { background:#fff; color:#f25c4d; border:1px solid rgba(242,92,77,0.5); border-radius:10px; padding:9px 14px; font-size:12px; font-weight:800; cursor:pointer; }
+  .btn-primary:hover { transform:translateY(-1px); box-shadow:0 10px 24px rgba(242,92,77,0.28); }
+  .btn-secondary:hover { border-color:var(--accent); }
+
+  /* DB cards */
+  .db-view { background:#fff; border-radius:12px; overflow:hidden; border:1px solid #ffd1c2; }
+  .db-header { background:#fff3ed; padding:8px 14px; display:flex; align-items:center; gap:8px; font-size:11px; color:#f25c4d; font-family:monospace; border-bottom:1px solid #ffd1c2; letter-spacing:0.01em; }
+  .db-table-inner { font-family:monospace; font-size:11px; color:#2d1f1b; }
+  .db-table-inner th { background:#fff3ed; color:#d97706; padding:6px 12px; border-bottom:1px solid #ffd1c2; text-align:left; }
+  .db-table-inner td { padding:6px 12px; border-bottom:1px solid #ffe1d6; }
+  .db-table-inner tr.highlight td { background:#fff0ea; color:#f25c4d; }
+  .db-row-new { animation: flashGreen 1.4s ease; }
+  @keyframes flashGreen { 0%,100% { background: transparent; } 30%,70% { background: rgba(91,228,155,0.12); } }
+
+  /* Blocks */
+  .flow-step { background:#fffaf6 !important; border:1px solid #ffd1c2 !important; border-radius:10px; padding:10px 14px; display:flex; align-items:center; gap:10px; font-size:12px; color:#2d1f1b; }
+  .flow-step .icon { width:28px; height:28px; border-radius:8px; position:relative; display:flex; align-items:center; justify-content:center; font-size:0; }
+  .flow-step .icon::before { content:''; width:14px; height:14px; border-radius:6px; background:linear-gradient(135deg,#f25c4d,#f8b04e); box-shadow:0 4px 12px rgba(242,92,77,0.25); }
+  .highlight-box { background:#fffaf6; border:1px solid #ffd1c2; border-radius:12px; padding:14px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.4); }
+  .tag { display:inline-flex; align-items:center; padding:2px 8px; border-radius:6px; font-size:10px; font-weight:700; font-family:monospace; background:#fff3ed; border:1px solid #ffd1c2; color:#f25c4d; }
+  .modal-overlay { background:rgba(0,0,0,0.35); border-radius:12px; padding:20px; }
+  .modal-box { background:#fff; border-radius:12px; padding:20px; color:var(--text); max-width:320px; border:1px solid #ffd1c2; }
+  .search-result { background:#fff; border:1px solid #ffd1c2; border-radius:10px; overflow:hidden; }
+  .search-result-item { padding:10px 12px; border-bottom:1px solid #ffe1d6; display:flex; align-items:center; gap:10px; font-size:12px; cursor:pointer; color:#2d1f1b; }
+  .search-result-item.selected, .search-result-item:hover { background:#fff7f3; }
+  .avatar { width:28px; height:28px; border-radius:10px; background:linear-gradient(135deg,#f25c4d,#f8b04e); display:flex; align-items:center; justify-content:center; color:#fff; font-size:11px; font-weight:800; flex-shrink:0; }
+  .radio-group { display:flex; gap:12px; }
+  .radio-opt { display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer; color:#4b4b4b; }
+  .radio-opt input { accent-color:#f25c4d; }
+  .preview-msg { background:#fffaf6; border:1px solid #ffd1c2; border-radius:10px; padding:12px; font-size:12px; line-height:1.7; white-space:pre-line; color:#2d1f1b; font-family:monospace; }
+  .filter-bar { background:#fffaf6; border:1px solid #ffd1c2; border-radius:10px; padding:12px; display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
+  .utm-tag { background:rgba(242,92,77,0.12); color:#b45309; border:1px solid rgba(242,92,77,0.22); border-radius:6px; padding:2px 8px; font-size:10px; font-family:monospace; }
+  .pulse { animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.55; } }
+  .toast { background:#fff3ed; color:#2d1f1b; border-left:4px solid #f25c4d; border-radius:10px; padding:10px 14px; font-size:12px; }
+  .arrow-right { display:inline-block; width:40px; height:2px; background:#4b5563; position:relative; }
+  .arrow-right::after { content:''; position:absolute; right:-5px; top:-4px; border:5px solid transparent; border-left-color:#4b5563; }
+</style>
+</head>
+<body>
+
+<!-- TOP NAV -->
+<div class="fixed top-0 left-0 right-0 z-50" style="height:64px;backdrop-filter:blur(16px);background:linear-gradient(135deg,#f25c4d,#f8b04e);border-bottom:1px solid #ffd1c2">
+  <div class="h-full max-w-6xl mx-auto px-5 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <img src="favicon-32x32.png" alt="logo" class="w-9 h-9 rounded-lg shadow" style="box-shadow:0 6px 16px rgba(0,0,0,0.18)">
+      <div class="flex items-center gap-2">
+        <div>
+          <div class="font-semibold text-sm" style="color:#2d1f1b">LINE OA Flow Simulator</div>
+          <div class="text-[11px]" style="color:#6b301e">MOMO CARGO theme</div>
+        </div>
+        <img src="main-momo-logo.gif" alt="momo" class="w-8 h-8 rounded-md shadow" style="box-shadow:0 4px 12px rgba(0,0,0,0.14)">
+      </div>
+    </div>
+    <div class="flex items-center gap-1.5" id="scene-dots"></div>
+  </div>
+</div>
+
+<!-- CHAPTER + PROGRESS BAR -->
+<div class="fixed z-40 left-0 right-0" style="top:64px; background:rgba(255,243,237,0.96);backdrop-filter:blur(12px);border-bottom:1px solid #ffd1c2">
+  <div class="max-w-6xl mx-auto px-5 py-2.5 flex items-center gap-4">
+    <span id="chapter-badge" class="text-[11px] font-bold px-3 py-1 rounded-full"></span>
+    <div class="flex-1 h-1.5 bg-[#ffe1d6] rounded-full overflow-hidden">
+      <div id="progress-bar" class="h-full rounded-full transition-all duration-300" style="background:linear-gradient(135deg,#f25c4d,#f8b04e);width:7%"></div>
+    </div>
+    <span id="scene-counter" class="text-xs font-mono" style="color:#9f7f73"></span>
+  </div>
+</div>
+
+<!-- SCENES CONTAINER -->
+<div style="padding-top:88px; padding-bottom:64px; min-height:100vh;">
+  <div id="scenes-wrap" class="max-w-6xl mx-auto px-5 py-6"></div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-800" style="background:#0f172a">
+  <div class="max-w-6xl mx-auto px-5 py-3 flex items-center justify-between">
+    <button id="prev-btn" onclick="go(-1)"
+      class="px-5 py-2 rounded-lg text-sm font-medium transition-all text-gray-400 hover:text-white"
+      style="background:#1e293b;border:1px solid #334155">← ก่อนหน้า</button>
+    <div id="scene-title" class="text-gray-400 text-sm font-medium text-center"></div>
+    <button id="next-btn" onclick="go(1)"
+      class="px-5 py-2 rounded-lg text-sm font-semibold transition-all text-white"
+      style="background:#06C755">ถัดไป →</button>
+  </div>
+</div>
+
+<script>
+// ──────────────────────────────────────────────────────────────────────────
+// SCENE DEFINITIONS
+// ──────────────────────────────────────────────────────────────────────────
+const scenes = [
+
+// ── 1. SYSTEM OVERVIEW ──────────────────────────────────────────────────
+{
+  chapter: 1,
+  title: '📋 ภาพรวมระบบ',
+  left: `
+    <div class="mb-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4" style="background:#064e3b;color:#6ee7b7">OVERVIEW</div>
+      <h2 class="text-2xl font-bold mb-2" style="color:#2d1f1b">LINE OA Customer Data Collection</h2>
+      <p class="text-sm leading-relaxed" style="color:#6b301e">ระบบเก็บข้อมูลลูกค้าจาก LINE OA อย่างเป็นระบบ เพื่อวัด Lead Quality จาก Ads ต่างๆ</p>
+    </div>
+    <div class="space-y-3">
+      ${[
+        ['🎯','เก็บ LINE UID ทุกคนที่เข้ามาใน OA','Capture every user automatically'],
+        ['📡','ผูก UTM Source จาก Ads กับ UID','Know exactly which ad brought each customer'],
+        ['📨','แอดมินส่ง Template Message ผ่านระบบ','Structured message sending with audit log'],
+        ['✅','Track สถานะการชำระเงิน','Auto-expire PENDING orders after 6h'],
+        ['🔍','ดูข้อมูลย้อนหลัง พร้อม Filter','Filter by customer / date / status'],
+      ].map(([icon,th,en])=>`
+        <div class="flow-step">
+          <div class="icon" style="background:#0f2a1a">${icon}</div>
+          <div>
+            <div class="text-xs font-semibold" style="color:#2d1f1b">${th}</div>
+            <div class="text-xs" style="color:#6b7280">${en}</div>
+          </div>
+        </div>`).join('')}
+    </div>`,
+  right: `
+    <div class="space-y-3 text-xs font-mono">
+      <div class="text-xs font-bold mb-3 tracking-wider" style="color:#2d1f1b">SYSTEM FLOW</div>
+      <!-- Row 1 -->
+      <div class="flex items-center gap-2">
+        <div class="px-3 py-2 rounded-lg text-center" style="background:#1e3a5f;border:1px solid #3b82f6;color:#fefefe;min-width:90px">
+          <div class="text-lg">📱</div><div class="text-xs">Facebook / Google Ads</div>
+        </div>
+        <div style="flex:1;height:1px;background:linear-gradient(to right,#3b82f6,#06C755)"></div>
+        <div class="px-3 py-2 rounded-lg text-center" style="background:#0f2a1a;border:1px solid #06C755;color:#e7f9f0;min-width:90px">
+          <div class="text-lg">🔗</div><div class="text-xs">/api/track?utm_*</div>
+        </div>
+      </div>
+      <div class="flex justify-end mr-12" style="color:#6b7280">↓ 302 Redirect</div>
+      <!-- Row 2 -->
+      <div class="flex items-center gap-2">
+        <div class="px-3 py-2 rounded-lg text-center" style="background:#0c8c5a;border:1px solid #06C755;color:#e7f9f0;min-width:90px">
+          <div class="text-lg">💚</div><div class="text-xs">LINE OA</div>
+        </div>
+        <div style="flex:1;height:1px;background:linear-gradient(to right,#06C755,#6366f1)"></div>
+        <div class="px-3 py-2 rounded-lg text-center" style="background:#1e1b4b;border:1px solid #6366f1;color:#e7e8ff;min-width:90px">
+          <div class="text-lg">⚡</div><div class="text-xs">Webhook Handler</div>
+        </div>
+      </div>
+      <div class="flex justify-center" style="color:#6b7280">↓ upsert customer + link UTM</div>
+      <!-- Row 3 DB -->
+      <div class="px-3 py-3 rounded-lg" style="background:#111827;border:1px solid #1f2937">
+        <div class="text-xs font-bold mb-2" style="color:#22c55e">🗄 PostgreSQL</div>
+        <div class="grid grid-cols-3 gap-2">
+          ${['customers','utm_sessions','orders','message_logs','webhook_events','templates'].map(t=>`<div class="text-xs px-2 py-1 rounded" style="background:#0f172a;color:#22c55e;border:1px solid #1f2937">${t}</div>`).join('')}
+        </div>
+      </div>
+      <!-- Row 4 Admin -->
+      <div class="flex gap-2">
+        <div class="flex-1 px-3 py-2 rounded-lg text-center" style="background:#1e293b;border:1px solid #475569;color:#94a3b8">
+          <div class="text-lg">🖥</div><div class="text-xs">Admin Dashboard</div>
+        </div>
+        <div class="flex-1 px-3 py-2 rounded-lg text-center" style="background:#1e293b;border:1px solid #475569;color:#94a3b8">
+          <div class="text-lg"></div><div class="text-xs">Data + Filters</div>
+        </div>
+      </div>
+      <div class="mt-2 text-center text-xs" style="color:#6b7280">Next.js 14 · PostgreSQL 16 · Docker</div>
+    </div>`
+},
+
+// ── 2. CUSTOMER SEES AD ────────────────────────────────────────────────
+{
+  chapter: 1,
+  title: '📱 ลูกค้าเห็น Ad ใน Facebook',
+  left: `
+    <div class="mb-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4" style="background:#f8b04e;color:#2d1f1b">STEP 1 — AD CLICK</div>
+      <h2 class="text-2xl font-bold mb-3" style="color:#2d1f1b">ลูกค้าคลิก Facebook Ad</h2>
+      <p class="text-sm leading-relaxed mb-4" style="color:#6b301e">ทุก Ad ที่ยิงออกไปจะมีลิ้งก์พิเศษที่ฝัง UTM Parameters เอาไว้ เมื่อลูกค้ากดคลิก ระบบจะรู้ว่า <strong style="color:#2d1f1b">มาจาก Campaign ไหน</strong></p>
+    </div>
+    <div class="space-y-3">
+      <div class="highlight-box">
+        <div class="text-xs font-bold mb-2" style="color:#f25c4d">🔗 Link ใน Ad</div>
+        <div class="font-mono text-xs break-all leading-relaxed" style="color:#4b5563">https://yourdomain.com/api/track?<br/><span style="color:#15803d;font-weight:700">utm_source=facebook</span>&<br/><span style="color:#b45309;font-weight:700">utm_medium=cpc</span>&<br/><span style="color:#9d174d;font-weight:700">utm_campaign=summer2025</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="icon" style="background:#f8b04e"></div>
+        <div>
+          <div class="text-xs font-semibold" style="color:#2d1f1b">UTM Parameters</div>
+          <div class="text-xs" style="color:#6b7280">source · medium · campaign · content · term</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="icon" style="background:#f8b04e">🎯</div>
+        <div>
+          <div class="text-xs font-semibold" style="color:#2d1f1b">ทำไมต้องมี UTM?</div>
+          <div class="text-xs" style="color:#6b7280">รู้ว่าลูกค้าคนนี้มาจาก Ad ไหน → วัด ROI ได้</div>
+        </div>
+      </div>
+    </div>`,
+  right: `
+    <div class="flex justify-center">
+      <div class="phone" style="max-width:260px">
+        <div class="phone-notch"><div class="phone-notch-pill"></div></div>
+        <div class="phone-status"><span>9:41</span><span>●●● 100%</span></div>
+        <!-- Facebook-like UI -->
+        <div style="background:#fff;min-height:480px">
+          <!-- FB Header -->
+          <div style="background:#1877f2;padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div style="color:#fff;font-weight:700;font-size:20px;font-style:italic">f</div>
+            <div style="display:flex;gap:8px">
+              <div style="width:26px;height:26px;background:rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px">🔍</div>
+              <div style="width:26px;height:26px;background:rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px">💬</div>
+            </div>
+          </div>
+          <!-- Feed -->
+          <div style="padding:12px;background:#f0f2f5">
+            <!-- Post card -->
+            <div style="background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.12)">
+              <div style="padding:10px;display:flex;align-items:center;gap:8px">
+                <div style="width:34px;height:34px;border-radius:50%;background:#fff;overflow:hidden;border:2px solid #f25c4d;display:flex;align-items:center;justify-content:center">
+                  <img src="brand-logo.png" alt="Momo Cargo" style="width:100%;height:100%;object-fit:cover">
+                </div>
+                <div>
+                  <div style="font-size:12px;font-weight:700;color:#1c1e21">MOMO CARGO</div>
+                  <div style="font-size:10px;color:#65676b">Sponsored · momomomo</div>
+                </div>
+              </div>
+              <div style="padding:0 10px 10px;font-size:12px;color:#1c1e21;line-height:1.5">
+                รับนำเข้าสินค้าจากจีน ไม่มีขั้นต่ำ เริ่มต้น 1 บาท<br/>เช็คราคาพร้อมสั่งได้ 24 ชม. เคลียร์ภาษีครบ
+              </div>
+              <div style="height:120px;background:linear-gradient(135deg,#f98b4d,#f25c4d);display:flex;align-items:center;justify-content:center">
+                <div style="text-align:center;color:#fff">
+                  <div style="font-size:22px;font-weight:800">นำเข้าจีน ราคาดี</div>
+                  <div style="font-size:11px;opacity:.92">ส่งเร็ว ปลอดภัย ไม่มีขั้นต่ำ</div>
+                </div>
+              </div>
+              <div style="padding:10px;border-top:1px solid #e4e6eb">
+                <div style="background:linear-gradient(135deg,#f98b4d,#f25c4d);color:#fff;border:none;border-radius:6px;padding:8px;text-align:center;font-size:12px;font-weight:700;width:100%">เช็คราคา & สั่งเลย →</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`
+},
+
+// ── 3. UTM CAPTURE ─────────────────────────────────────────────────────
+{
+  chapter: 1,
+  title: '🔗 ระบบจับ UTM + สร้าง Session',
+  left: `
+    <div class="mb-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4" style="background:#064e3b;color:#6ee7b7">STEP 2 — UTM CAPTURE</div>
+      <h2 class="text-2xl font-bold text-white mb-3">GET /api/track → บันทึก UTM</h2>
+      <p class="text-gray-400 text-sm leading-relaxed mb-4">เมื่อลูกค้ากดลิ้งก์ ระบบจะจับ UTM parameters, สร้าง <code class="text-green-400">session_token</code> แบบ unique, บันทึกลง DB แล้ว redirect ต่อไปยัง LINE OA</p>
+    </div>
+    <div class="space-y-3">
+      <div class="highlight-box text-xs leading-relaxed font-mono">
+        <span class="text-blue-400">// สร้าง session token</span><br/>
+        <span class="text-purple-400">const</span> token = <span class="text-green-400">crypto.randomUUID()</span><br/>
+        <span class="text-gray-500">// "a3f7c8d2-1b4e-..."</span><br/><br/>
+        <span class="text-blue-400">// บันทึกลง utm_sessions</span><br/>
+        <span class="text-yellow-400">INSERT INTO</span> utm_sessions<br/>
+        &nbsp;&nbsp;(token, utm_source, utm_campaign)<br/>
+        <span class="text-yellow-400">VALUES</span> ($1, $2, $3)<br/><br/>
+        <span class="text-blue-400">// Redirect ไป LINE</span><br/>
+        <span class="text-purple-400">return</span> <span class="text-green-400">redirect</span>(<br/>
+        &nbsp;&nbsp;<span class="text-orange-400">\`line.me/ti/p/@OA?<br/>&nbsp;&nbsp;oaMessageToken=\${token}\`</span><br/>
+        )
+      </div>
+      <div class="flow-step">
+        <div class="icon" style="background:#064e3b">⚡</div>
+        <div>
+          <div class="text-white text-xs font-semibold">session_token ถูกส่งไปใน LINE URL</div>
+          <div class="text-gray-400 text-xs">LINE จะส่ง token กลับมาใน follow event</div>
+        </div>
+      </div>
+    </div>`,
+  right: `
+    <div class="space-y-3">
+      <!-- Browser showing the URL -->
+      <div class="browser">
+        <div class="browser-chrome">
+          <div class="dot" style="background:#ff5f57"></div>
+          <div class="dot" style="background:#ffbd2e"></div>
+          <div class="dot" style="background:#28c840"></div>
+          <div class="browser-addr">yourdomain.com/api/track?utm_source=facebook&amp;utm_medium=cpc&amp;utm_campaign=summer2025</div>
+        </div>
+        <div class="browser-body" style="padding:20px;background:#f8fafc">
+          <div style="text-align:center;color:#475569">
+            <div style="font-size:32px;margin-bottom:8px">🔄</div>
+            <div style="font-size:13px;font-weight:600;color:#1e293b">Redirecting to LINE OA...</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:4px">เก็บ UTM เรียบร้อยแล้ว</div>
+            <div style="margin-top:12px;height:3px;background:#e2e8f0;border-radius:2px;overflow:hidden">
+              <div style="height:100%;background:#06C755;animation:loadBar 1.5s ease-in-out infinite;width:60%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- DB row -->
+      <div class="db-view">
+        <div class="db-header">🗄 utm_sessions — new row inserted</div>
+        <div style="overflow-x:auto;padding:8px">
+          <table class="db-table-inner w-full">
+            <tr><th>session_token</th><th>utm_source</th><th>utm_campaign</th><th>line_uid</th><th>expires_at</th></tr>
+            <tr class="db-row-new">
+              <td style="color:#fcd34d">a3f7c8d2...</td>
+              <td style="color:#6ee7b7">facebook</td>
+              <td style="color:#6ee7b7">summer2025</td>
+              <td style="color:#6b7280">NULL</td>
+              <td style="color:#94a3b8">+24h</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+      <div class="text-center text-xs text-gray-500">line_uid = NULL จนกว่าลูกค้าจะ Follow OA</div>
+    </div>
+    <style>@keyframes loadBar{0%{width:0}100%{width:100%}}</style>`
+},
+
+// ── 4. LINE OA FOLLOW ───────────────────────────────────────────────────
+{
+  chapter: 1,
+  title: '💚 ลูกค้ากด Follow LINE OA',
+  left: `
+    <div class="mb-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4" style="background:#f25c4d;color:#fff">STEP 3 — LINE FOLLOW</div>
+      <h2 class="text-2xl font-bold mb-3" style="color:#2d1f1b">ลูกค้าเข้า LINE OA (MOMO CARGO)</h2>
+      <p class="text-sm leading-relaxed mb-4" style="color:#6b301e">หลังจาก Redirect มา LINE ลูกค้าจะเห็นโปรไฟล์ <strong style="color:#2d1f1b">Momo Cargo</strong> พร้อมจุดขาย “รับนำเข้าสินค้าจากจีน ไม่มีขั้นต่ำ” กด <strong style="color:#2d1f1b">เพิ่มเพื่อน</strong> แล้ว LINE จะส่ง <code style="color:#16a34a;font-weight:700">follow event</code> กลับมาพร้อม session_token</p>
+    </div>
+    <div class="space-y-3">
+      <div class="highlight-box">
+        <div class="text-xs font-bold mb-2" style="color:#16a34a">⚡ LINE Webhook Event</div>
+        <div class="font-mono text-xs leading-relaxed" style="color:#2d1f1b">
+{<br/>
+&nbsp;&nbsp;<span style="color:#f9a8d4">"type"</span>: <span style="color:#6ee7b7">"follow"</span>,<br/>
+&nbsp;&nbsp;<span style="color:#f9a8d4">"source"</span>: {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f9a8d4">"userId"</span>: <span style="color:#fcd34d">"Uf4d2c1a..."</span><br/>
+&nbsp;&nbsp;},<br/>
+&nbsp;&nbsp;<span style="color:#f9a8d4">"follow"</span>: {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f9a8d4">"referralInfo"</span>: {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f9a8d4">"referralCode"</span>: <span style="color:#fcd34d">"a3f7c8d2"</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br/>
+&nbsp;&nbsp;}<br/>
+}
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="icon" style="background:#064e3b">🔐</div>
+        <div>
+          <div class="text-xs font-semibold" style="color:#2d1f1b">Verify X-Line-Signature ก่อน</div>
+          <div class="text-xs" style="color:#6b7280">HMAC-SHA256 ป้องกัน webhook ปลอม</div>
+        </div>
+      </div>
+    </div>`,
+  right: `
+    <div class="flex justify-center">
+      <div class="phone-real">
+        <div class="phone-notch-real">
+          <div class="pill"></div>
+          <div class="status"><span>9:41</span><span style="font-weight:700;">﹙﹚﹙﹚</span></div>
+        </div>
+        <div class="phone-body-real" style="background:linear-gradient(180deg,#fff4ed 0%, #ffe7da 60%, #ffffff 100%);">
+          <div style="background:linear-gradient(135deg,#f98b4d,#f25c4d); height:120px; border-radius:18px; position:relative; box-shadow:0 12px 32px rgba(242,92,77,0.35);">
+            <div style="position:absolute; top:14px; left:14px; color:#fff7f2; font-weight:800; font-size:12px;">← เพิ่มเพื่อน</div>
+          </div>
+          <div style="background:#fff; border-radius:18px; margin-top:-50px; padding:18px; box-shadow:0 12px 28px rgba(0,0,0,0.12); text-align:center;">
+            <div style="display:flex; justify-content:center; margin-bottom:10px; position:relative; top:-30px;">
+              <div style="width:78px; height:78px; border-radius:26px; background:#fff; border:4px solid #f25c4d; display:flex; align-items:center; justify-content:center; box-shadow:0 10px 24px rgba(242,92,77,0.35); overflow:hidden;">
+                <img src="brand-logo.png" alt="Momo Cargo" style="width:100%; height:100%; object-fit:cover; border-radius:22px;">
+              </div>
+            </div>
+            <div style="margin-top:-20px;">
+              <div style="font-size:17px; font-weight:800; color:#2d1f1b;">MOMO CARGO</div>
+              <div style="font-size:12px; color:#6b301e; margin-top:2px;">momomomo</div>
+              <div style="display:flex; justify-content:center; gap:6px; margin-top:8px;">
+                <span style="background:#fff3ed; color:#f25c4d; font-size:10px; padding:4px 8px; border-radius:10px; border:1px solid #ffd1c2; font-weight:700;">Verified</span>
+                <span style="background:#fff7f3; color:#b45309; font-size:10px; padding:4px 8px; border-radius:10px; border:1px solid #ffd1c2; font-weight:700;">1,234 เพื่อน</span>
+              </div>
+              <button style="margin-top:14px; width:100%; background:linear-gradient(135deg,#f98b4d,#f25c4d); color:#fff7f2; font-weight:800; border:none; border-radius:16px; padding:12px; font-size:14px; box-shadow:0 10px 22px rgba(242,92,77,0.35); cursor:pointer;">เพิ่มเพื่อน</button>
+              <div style="margin-top:12px; font-size:12px; color:#4b5563; line-height:1.5;">
+                รับนำเข้าสินค้าจากจีน ไม่มีขั้นต่ำ<br/>รวดเร็ว ปลอดภัย เคลียร์ภาษีครบ
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`
+},
+
+// ── 5. WEBHOOK PROCESSING ──────────────────────────────────────────────
+{
+  chapter: 1,
+  title: '⚡ Webhook ประมวลผล + เก็บข้อมูล',
+  left: `
+    <div class="mb-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4" style="background:#064e3b;color:#6ee7b7">STEP 4 — DATA CAPTURE</div>
+      <h2 class="text-2xl font-bold text-white mb-3">ระบบประมวลผล Webhook</h2>
+      <p class="text-gray-400 text-sm leading-relaxed mb-4">เมื่อรับ follow event มา ระบบทำงาน 3 ขั้นตอน พร้อมกัน ใน milliseconds</p>
+    </div>
+    <div class="space-y-2">
+      ${[
+        ['1','Idempotency Check','ตรวจสอบ webhookEventId — ถ้าเคยประมวลผลแล้วให้ข้าม (LINE อาจส่งซ้ำ)','#1e3a5f','#93c5fd'],
+        ['2','Upsert Customer','INSERT … ON CONFLICT → เก็บ line_uid, display_name, picture_url ถ้าเป็นลูกค้าใหม่ ระบบจะ auto-generate CUST-000001','#064e3b','#6ee7b7'],
+        ['3','Link UTM Session','UPDATE utm_sessions SET line_uid = userId WHERE token = referralCode — ผูก UTM กับ UID เรียบร้อย!','#3b1a6b','#c4b5fd'],
+      ].map(([n,title,desc,bg,c])=>`
+        <div class="flow-step" style="border-color:${c}20">
+          <div class="icon text-white font-bold text-sm" style="background:${bg};color:${c}">${n}</div>
+          <div>
+            <div class="font-semibold text-xs" style="color:${c}">${title}</div>
+            <div class="text-gray-400 text-xs mt-0.5">${desc}</div>
+          </div>
+        </div>`).join('')}
+    </div>`,
+  right: `
+    <div class="space-y-3">
+      <div class="db-view">
+        <div class="db-header">🗄 customers — new customer created</div>
+        <div style="overflow-x:auto;padding:8px">
+          <table class="db-table-inner w-full">
+            <tr><th>customer_code</th><th>line_uid</th><th>display_name</th><th>source_type</th></tr>
+            <tr class="db-row-new">
+              <td style="color:#fcd34d">CUST-000042</td>
+              <td style="color:#6ee7b7">Uf4d2c1a...</td>
+              <td style="color:#6ee7b7">สมชาย ใจดี</td>
+              <td style="color:#a5b4fc">follow</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+      <div class="db-view">
+        <div class="db-header">🗄 utm_sessions — linked to UID ✅</div>
+        <div style="overflow-x:auto;padding:8px">
+          <table class="db-table-inner w-full">
+            <tr><th>session_token</th><th>utm_source</th><th>line_uid</th><th>linked_at</th></tr>
+            <tr class="db-row-new">
+              <td style="color:#fcd34d">a3f7c8d2...</td>
+              <td style="color:#6ee7b7">facebook</td>
+              <td style="color:#7ee787">Uf4d2c1a...</td>
+              <td style="color:#7ee787">NOW() ✓</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+      <div class="toast">
+        ✅ UTM ถูกผูกกับ LINE UID สำเร็จ — ตอนนี้เรารู้แล้วว่าลูกค้าคนนี้มาจาก Facebook Ads: summer2025
+      </div>
+    </div>`
+},
+
+// ── 6. ADMIN LOGIN ─────────────────────────────────────────────────────
+{
+  chapter: 2,
+  title: '🔐 Admin เข้าสู่ระบบ',
+  left: `
+    <div class="mb-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4" style="background:#1e3a5f;color:#93c5fd">ADMIN — LOGIN</div>
+      <h2 class="text-2xl font-bold text-white mb-3">Admin Authentication</h2>
+      <p class="text-gray-400 text-sm leading-relaxed mb-4">ระบบใช้ <strong class="text-white">NextAuth.js</strong> แบบ Credentials (username + password) เก็บใน ENV — Session JWT มีอายุ 8 ชั่วโมง</p>
+    </div>
+    <div class="space-y-3">
+      <div class="flow-step">
+        <div class="icon" style="background:#1e3a5f">🔒</div>
+        <div>
+          <div class="text-white text-xs font-semibold">ทุก /admin/* route ถูก protect</div>
+          <div class="text-gray-400 text-xs">middleware.ts ตรวจ session ก่อน render ทุกหน้า</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="icon" style="background:#1e3a5f">⏱</div>
+        <div>
+          <div class="text-white text-xs font-semibold">Session หมดอายุใน 8 ชั่วโมง</div>
+          <div class="text-gray-400 text-xs">เหมาะกับการใช้งาน 1 กะทำงาน</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="icon" style="background:#1e3a5f">🛡</div>
+        <div>
+          <div class="text-white text-xs font-semibold">ทุก API route ตรวจ session</div>
+          <div class="text-gray-400 text-xs">getServerSession(authOptions) ทุก endpoint</div>
+        </div>
+      </div>
+    </div>`,
+  right: `
+    <div class="flex justify-center">
+      <div class="browser" style="width:420px">
+        <div class="browser-chrome">
+          <div class="dot" style="background:#ff5f57"></div>
+          <div class="dot" style="background:#ffbd2e"></div>
+          <div class="dot" style="background:#28c840"></div>
+          <div class="browser-addr">yourdomain.com/login</div>
+        </div>
+        <div class="browser-body" style="background:#f8fafc;padding:40px 30px;min-height:360px;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div style="background:#fff;border-radius:12px;padding:28px;width:100%;max-width:320px;box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid #e2e8f0">
+            <div style="text-align:center;margin-bottom:20px">
+              <div style="width:44px;height:44px;background:#06C755;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:18px;margin:0 auto 10px">L</div>
+              <div style="font-size:16px;font-weight:700;color:#1e293b">เข้าสู่ระบบ Admin</div>
+              <div style="font-size:11px;color:#94a3b8;margin-top:4px">LINE OA Data System</div>
+            </div>
+            <div style="margin-bottom:12px">
+              <label class="form-label">Username</label>
+              <input class="form-input" value="admin" readonly style="color:#1e293b"/>
+            </div>
+            <div style="margin-bottom:16px">
+              <label class="form-label">Password</label>
+              <input class="form-input" type="password" value="••••••••" readonly style="color:#1e293b"/>
+            </div>
+            <button class="btn-primary" style="width:100%;padding:10px">เข้าสู่ระบบ</button>
+          </div>
+        </div>
+      </div>
+    </div>`
+},
+
+// ── 7. DASHBOARD ───────────────────────────────────────────────────────
+{
+  chapter: 2,
+  title: ' Admin Dashboard',
+  left: `
+    <div class="mb-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4" style="background:#f25c4d;color:#fff">ADMIN — DASHBOARD</div>
+      <h2 class="text-2xl font-bold mb-3" style="color:#2d1f1b">หน้า Dashboard</h2>
+      <p class="text-sm leading-relaxed mb-4" style="color:#6b301e">หน้าแรกที่แอดมินเห็นหลัง login แสดงสถิติสำคัญ 4 ตัว — <strong style="color:#2d1f1b">ไม่มีกราฟ</strong> ตามที่กำหนด</p>
+    </div>
+    <div class="space-y-3">
+      <div class="highlight-box">
+        <div class="text-xs font-bold mb-2" style="color:#f25c4d">📡 4 SQL Queries</div>
+        <div class="font-mono text-xs leading-relaxed space-y-1" style="color:#2d1f1b">
+          <div><span style="color:#b45309">COUNT</span>(*) FROM customers</div>
+          <div><span style="color:#b45309">COUNT</span>(*) FROM message_logs WHERE sent_at >= TODAY</div>
+          <div><span style="color:#b45309">COUNT</span>(*) FROM orders WHERE status=<span style="color:#16a34a">'CONFIRMED'</span></div>
+          <div><span style="color:#b45309">COUNT</span>(*) FROM orders WHERE status=<span style="color:#b45309">'PENDING'</span> AND expires_at>NOW()</div>
+        </div>
+      </div>
+    </div>`,
+  right: `
+    <div class="browser">
+      <div class="browser-chrome">
+        <div class="dot" style="background:#ff5f57"></div>
+        <div class="dot" style="background:#ffbd2e"></div>
+        <div class="dot" style="background:#28c840"></div>
+        <div class="browser-addr">yourdomain.com/admin</div>
+      </div>
+      <div class="browser-body" style="display:flex;min-height:420px">
+        <div class="admin-sidebar">
+          <div class="sidebar-logo"><div class="flex items-center gap-2"><div class="logo-icon">L</div><span style="font-size:12px;font-weight:700;color:#f1f5f9">LINE OA</span></div></div>
+          <div class="nav-item active"> Dashboard</div>
+          <div class="nav-item">👥 ลูกค้า</div>
+          <div class="nav-item">📨 ส่งข้อความ</div>
+          <div class="nav-item">📋 ประวัติข้อความ</div>
+          <div class="nav-item">📦 ออเดอร์</div>
+          <div class="nav-item" style="margin-top:auto;color:#ef4444">🚪 ออกจากระบบ</div>
+        </div>
+        <div class="admin-content">
+          <div class="admin-topbar">
+            <div style="font-size:13px;font-weight:700;color:#1e293b">Dashboard</div>
+            <div style="font-size:11px;color:#94a3b8">สวัสดี, admin ☀️</div>
+          </div>
+          <div class="admin-body">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+              <div class="stat-card"><div style="font-size:18px;margin-bottom:4px">👥</div><div class="stat-val" style="font-size:22px">1,234</div><div class="stat-label">ลูกค้าทั้งหมด</div></div>
+              <div class="stat-card"><div style="font-size:18px;margin-bottom:4px">📩</div><div class="stat-val" style="font-size:22px">23</div><div class="stat-label">ข้อความวันนี้</div></div>
+              <div class="stat-card"><div style="font-size:18px;margin-bottom:4px">✅</div><div class="stat-val" style="font-size:22px;color:#059669">89</div><div class="stat-label">ยืนยันแล้ว (เดือนนี้)</div></div>
+              <div class="stat-card"><div style="font-size:18px;margin-bottom:4px">⏳</div><div class="stat-val" style="font-size:22px;color:#d97706">5</div><div class="stat-label">รอการยืนยัน</div></div>
+            </div>
+            <div style="background:#fff;border-radius:10px;border:1px solid #e2e8f0;padding:14px">
+              <div style="font-size:12px;font-weight:700;color:#1e293b;margin-bottom:10px">ลูกค้าใหม่ล่าสุด</div>
+              <table class="data-table">
+                <tr><th>Code</th><th>ชื่อ</th><th>UTM Source</th><th>เข้ามาเมื่อ</th></tr>
+                <tr><td style="color:#06C755;font-weight:600">CUST-042</td><td>สมชาย ใจดี</td><td><span class="utm-tag">facebook</span></td><td style="color:#94a3b8">2 นาทีก่อน</td></tr>
+                <tr><td style="color:#06C755;font-weight:600">CUST-041</td><td>มาลี สวยงาม</td><td><span class="utm-tag">google</span></td><td style="color:#94a3b8">1 ชม.ก่อน</td></tr>
+                <tr><td style="color:#06C755;font-weight:600">CUST-040</td><td>ปิยะ รักไทย</td><td><span class="utm-tag">direct</span></td><td style="color:#94a3b8">3 ชม.ก่อน</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`
+},
+
+// ── 8. SEND MSG — SELECT CUSTOMER ──────────────────────────────────────
+{
+  chapter: 2,
+  title: '📨 ส่งข้อความ — เลือกลูกค้า',
+  left: `
+    <div class="mb-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4" style="background:#1e3a5f;color:#93c5fd">ADMIN — SEND MESSAGE (1/4)</div>
+      <h2 class="text-2xl font-bold text-white mb-3">Step 1: เลือกลูกค้า</h2>
+      <p class="text-gray-400 text-sm leading-relaxed mb-4">Admin พิมพ์ค้นหาชื่อหรือ Customer Code — ระบบ debounce 300ms แล้ว call <code class="text-green-400">GET /api/customers/search?q=สม</code></p>
+    </div>
+    <div class="space-y-3">
+      <div class="highlight-box">
+        <div class="text-xs font-bold text-green-400 mb-2">SQL ที่ใช้ค้นหา</div>
+        <div class="font-mono text-xs text-gray-300 leading-relaxed">
+          SELECT line_uid, customer_code,<br/>
+          &nbsp;&nbsp;display_name, picture_url<br/>
+          FROM customers<br/>
+          WHERE is_blocked = FALSE AND (<br/>
+          &nbsp;&nbsp;customer_code <span class="text-yellow-400">ILIKE</span> $1 OR<br/>
+          &nbsp;&nbsp;display_name <span class="text-yellow-400">ILIKE</span> $1<br/>
+          )<br/>
+          LIMIT 10
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="icon" style="background:#064e3b">⚡</div>
+        <div>
+          <div class="text-white text-xs font-semibold">pg_trgm index</div>
+          <div class="text-gray-400 text-xs">ค้นหาภาษาไทยเร็วด้วย GIN index</div>
+        </div>
+      </div>
+    </div>`,
+  right: `
+    <div class="browser">
+      <div class="browser-chrome">
+        <div class="dot" style="background:#ff5f57"></div>
+        <div class="dot" style="background:#ffbd2e"></div>
+        <div class="dot" style="background:#28c840"></div>
+        <div class="browser-addr">yourdomain.com/admin/messages/send</div>
+      </div>
+      <div class="browser-body" style="display:flex;min-height:400px">
+        <div class="admin-sidebar">
+          <div class="sidebar-logo"><div class="flex items-center gap-2"><div class="logo-icon">L</div><span style="font-size:12px;font-weight:700;color:#f1f5f9">LINE OA</span></div></div>
+          <div class="nav-item"> Dashboard</div>
+          <div class="nav-item">👥 ลูกค้า</div>
+          <div class="nav-item active">📨 ส่งข้อความ</div>
+          <div class="nav-item">📋 ประวัติข้อความ</div>
+          <div class="nav-item">📦 ออเดอร์</div>
+        </div>
+        <div class="admin-content">
+          <div class="admin-topbar"><div style="font-size:13px;font-weight:700;color:#1e293b">ส่งข้อความหาลูกค้า</div></div>
+          <div class="admin-body">
+            <div style="background:#fff;border-radius:10px;border:1px solid #e2e8f0;padding:16px;max-width:460px">
+              <div style="margin-bottom:14px">
+                <label class="form-label">ค้นหาลูกค้า *</label>
+                <div style="position:relative">
+                  <input class="form-input" value="สม" style="color:#1e293b;border-color:#06C755;box-shadow:0 0 0 2px rgba(6,199,85,.15)"/>
+                  <div style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;color:#94a3b8">🔍</div>
+                </div>
+              </div>
+              <!-- Search results dropdown -->
+              <div class="search-result" style="margin-bottom:14px">
+                <div style="padding:6px 12px;font-size:10px;color:#94a3b8;background:#f8fafc;border-bottom:1px solid #f1f5f9">ผลการค้นหา</div>
+                <div class="search-result-item selected">
+                  <div class="avatar">ส</div>
+                  <div>
+                    <div style="font-weight:600;color:#1e293b">สมชาย ใจดี</div>
+                    <div style="font-size:10px;color:#94a3b8">CUST-042 · <span class="utm-tag">facebook/summer2025</span></div>
+                  </div>
+                  <div style="margin-left:auto;font-size:11px;color:#06C755;font-weight:600">✓ เลือก</div>
+                </div>
+                <div class="search-result-item">
+                  <div class="avatar" style="background:#6366f1">ส</div>
+                  <div>
+                    <div style="font-weight:600;color:#1e293b">สมหมาย พงษ์ดี</div>
+                    <div style="font-size:10px;color:#94a3b8">CUST-038 · <span class="utm-tag">google/brand</span></div>
+                  </div>
+                </div>
+                <div class="search-result-item">
+                  <div class="avatar" style="background:#f59e0b">ส</div>
+                  <div>
+                    <div style="font-weight:600;color:#1e293b">สุดา รักสงบ</div>
+                    <div style="font-size:10px;color:#94a3b8">CUST-033 · <span class="utm-tag">direct</span></div>
+                  </div>
+                </div>
+              </div>
+              <!-- Selected customer chip -->
+              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:8px">
+                <div class="avatar" style="width:24px;height:24px;font-size:10px">ส</div>
+                <div style="flex:1">
+                  <div style="font-size:12px;font-weight:600;color:#1e293b">สมชาย ใจดี</div>
+                  <div style="font-size:10px;color:#64748b">CUST-042</div>
+                </div>
+                <div style="font-size:11px;color:#dc2626;cursor:pointer">✕</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`
+},
+
+// ── 9. SEND MSG — FILL FORM ────────────────────────────────────────────
+{
+  chapter: 2,
+  title: 'เลือก Template + กรอกข้อมูล',
+  left: `
+    <div class="mb-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4" style="background:#1e3a5f;color:#93c5fd">ADMIN — SEND MESSAGE (2/4)</div>
+      <h2 class="text-2xl font-bold text-white mb-3">Step 2: เลือก Template</h2>
+      <p class="text-gray-400 text-sm leading-relaxed mb-4">ฟอร์มนี้ให้แอดมินเลือก Template ก่อนส่งเข้า LINE ลูกค้าที่เลือก (โค้ดขึ้นต้น JWD) มี 2 แบบ: สรุปยอดค่าสินค้า และ แจ้งค่าขนส่ง พร้อมเลือกบัญชีธนาคาร, กรอกยอด, ระบบ generate Order Code ให้เอง</p>
+    </div>
+    <div class="space-y-3">
+      ${[
+        ['PRODUCT_SUMMARY','สรุปยอดค่าสินค้า','ฟิลด์: ประเภทบัญชี, ยอดค่าสินค้า, เรทค่าเงิน, ยอดชำระ, Order Code (ORD-INV-...)'],
+        ['SHIPPING','แจ้งค่าขนส่ง','ฟิลด์เหมือนกัน แต่ Order Code ใช้ prefix IMP-INV-...'],
+      ].map(([key,th,desc])=>`
+        <div class="flow-step" style="${key==='PRODUCT_SUMMARY'?'border-color:#06C755;background:#0f2a1a':''}">
+          <div class="icon"></div>
+          <div>
+            <div class="text-xs font-semibold" style="color:${key==='PRODUCT_SUMMARY'?'#6ee7b7':'#f1f5f9'}">${th}</div>
+            <div class="text-gray-400 text-xs">${desc}</div>
+          </div>
+        </div>`).join('')}
+    </div>`,
+  right: `
+    <div class="browser">
+      <div class="browser-chrome">
+        <div class="dot" style="background:#ff5f57"></div>
+        <div class="dot" style="background:#ffbd2e"></div>
+        <div class="dot" style="background:#28c840"></div>
+        <div class="browser-addr">yourdomain.com/admin/messages/send</div>
+      </div>
+      <div class="browser-body" style="background:#0f172a;padding:16px;min-height:420px">
+        <div class="dark-card" style="border-radius:12px;padding:16px;max-width:520px;box-shadow:0 10px 30px rgba(0,0,0,0.25)">
+          <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:12px;flex-wrap:wrap">
+            <div>
+              <label class="form-label">Template Type *</label>
+              <select class="form-select" id="tpl-select">
+                <option value="summary" selected>สรุปยอดค่าสินค้า</option>
+                <option value="shipping">แจ้งค่าขนส่ง</option>
+              </select>
+            </div>
+            <div style="flex:1;min-width:180px">
+              <label class="form-label">Customer Code *</label>
+              <input class="form-input" placeholder="JWD-..." value="JWD-042"/>
+              <div style="font-size:10px;color:#9fb1c7;margin-top:4px">เลือกรหัสลูกค้าที่ขึ้นต้นด้วย JWD</div>
+            </div>
+          </div>
+
+          <div id="tpl-summary" class="tpl-panel">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+              <div>
+                <label class="form-label">ประเภทบัญชี *</label>
+                <select class="form-select">
+                  <option selected>บัญชีธนาคาร 1 (SCB)</option>
+                  <option>บัญชีธนาคาร 2 (KBank)</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">เรทค่าเงิน</label>
+                <input class="form-input" value="37.10"/>
+              </div>
+              <div>
+                <label class="form-label">ยอดค่าสินค้า</label>
+                <input class="form-input" value="12,500"/>
+              </div>
+              <div>
+                <label class="form-label">ยอดชำระ</label>
+                <input class="form-input" value="12,500"/>
+              </div>
+            </div>
+            <div style="margin-bottom:12px">
+              <label class="form-label">Order Code (Auto)</label>
+              <input class="form-input" value="ORD-INV-260226-001" readonly style="font-weight:700;font-family:monospace;color:#5be49b"/>
+            </div>
+            <div class="preview-msg" style="margin-bottom:12px">
+สรุปยอดค่าสินค้า
+รหัสออเดอร์: ORD-INV-260226-001
+ยอดค่าสินค้า: 12,500 บาท
+ยอดชำระ: 12,500 บาท
+ชำระผ่าน: บัญชีธนาคาร 1 (SCB)</div>
+            <div style="display:flex;gap:10px">
+              <button class="btn-secondary" style="flex:1">บันทึกเป็น Draft</button>
+              <button class="btn-primary" style="flex:1">ส่งเข้า LINE</button>
+            </div>
+          </div>
+
+          <div id="tpl-shipping" class="tpl-panel" style="display:none">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+              <div>
+                <label class="form-label">ประเภทบัญชี *</label>
+                <select class="form-select">
+                  <option selected>บัญชีธนาคาร 1 (SCB)</option>
+                  <option>บัญชีธนาคาร 2 (KBank)</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">เรทค่าเงิน</label>
+                <input class="form-input" value="37.10"/>
+              </div>
+              <div>
+                <label class="form-label">ค่าขนส่ง</label>
+                <input class="form-input" value="450"/>
+              </div>
+              <div>
+                <label class="form-label">ยอดชำระ</label>
+                <input class="form-input" value="450"/>
+              </div>
+            </div>
+            <div style="margin-bottom:12px">
+              <label class="form-label">Order Code (Auto)</label>
+              <input class="form-input" value="IMP-INV-260226-001" readonly style="font-weight:700;font-family:monospace;color:#5be49b"/>
+            </div>
+            <div class="preview-msg" style="margin-bottom:12px">
+แจ้งค่าขนส่ง
+รหัสออเดอร์: IMP-INV-260226-001
+ค่าขนส่ง: 450 บาท
+ยอดชำระ: 450 บาท
+ชำระผ่าน: บัญชีธนาคาร 1 (SCB)
+ขอบคุณที่ใช้บริการค่ะ</div>
+            <div style="display:flex;gap:10px">
+              <button class="btn-secondary" style="flex:1">บันทึกเป็น Draft</button>
+              <button class="btn-primary" style="flex:1">ส่งเข้า LINE</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`
+},
+
+// ── 10. PREVIEW MODAL ──────────────────────────────────────────────────
+{
+  chapter: 2,
+  title: '👁 Preview Modal ก่อนส่ง',
+  left: `
+    <div class="mb-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4" style="background:#1e3a5f;color:#93c5fd">ADMIN — SEND MESSAGE (3/4)</div>
+      <h2 class="text-2xl font-bold text-white mb-3">Step 3: Preview + ยืนยัน</h2>
+      <p class="text-gray-400 text-sm leading-relaxed mb-4">Admin เห็น modal แสดงข้อความสุดท้ายก่อนส่ง — กด <strong class="text-white">ยืนยันส่ง</strong> จะ call <code class="text-green-400">POST /api/messages/send</code></p>
+    </div>
+    <div class="space-y-3">
+      <div class="highlight-box">
+        <div class="text-xs font-bold text-green-400 mb-2">เมื่อกด "ยืนยันส่ง" ระบบจะ:</div>
+        <div class="space-y-1.5 text-xs text-gray-300">
+          <div>① Validate input ด้วย Zod schema</div>
+          <div>② เริ่ม DB Transaction</div>
+          <div>③ <span class="text-yellow-400">generateOrderCode()</span> → consume seq</div>
+          <div>④ INSERT orders (PENDING, expires +6h)</div>
+          <div>⑤ LINE <span class="text-green-400">pushMessage()</span> API</div>
+          <div>⑥ INSERT message_logs (เก็บ audit trail)</div>
+          <div>⑦ COMMIT transaction</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="icon" style="background:#7c2d12">⚠️</div>
+        <div>
+          <div class="text-white text-xs font-semibold">ถ้า LINE API fail</div>
+          <div class="text-gray-400 text-xs">ROLLBACK transaction + บันทึก line_error ใน message_logs</div>
+        </div>
+      </div>
+    </div>`,
+  right: `
+    <div style="position:relative">
+      <!-- Background (blurred) -->
+      <div class="browser" style="opacity:.4">
+        <div class="browser-chrome">
+          <div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#ffbd2e"></div><div class="dot" style="background:#28c840"></div>
+          <div class="browser-addr">yourdomain.com/admin/messages/send</div>
+        </div>
+        <div style="height:300px;background:#f8fafc"></div>
+      </div>
+      <!-- Modal overlay -->
+      <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;border-radius:10px">
+        <div style="background:#fff;border-radius:12px;padding:20px;width:320px;box-shadow:0 20px 50px rgba(0,0,0,.3)">
+          <div style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:4px">📤 ยืนยันการส่งข้อความ</div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:12px">กรุณาตรวจสอบก่อนกดส่ง</div>
+          <!-- Customer info -->
+          <div style="background:#f8fafc;border-radius:8px;padding:8px 10px;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+            <div class="avatar" style="width:26px;height:26px;font-size:10px">ส</div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:#1e293b">สมชาย ใจดี</div>
+              <div style="font-size:10px;color:#64748b">CUST-042</div>
+            </div>
+            <span class="badge badge-vat" style="margin-left:auto">VAT</span>
+          </div>
+          <!-- Message preview -->
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px;margin-bottom:12px;font-size:11px;font-family:monospace;line-height:1.7;color:#1e293b;white-space:pre-line">📋 สรุปยอดค่าสินค้า
+━━━━━━━━━━━━━━
+รหัสออเดอร์: THU-260226-JWD/0043
+ประเภทบัญชี: รวม VAT 7%
+ยอดรวม: 12,500 บาท
+ชำระภายใน: 27/02/2026</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn-secondary" style="flex:1;font-size:12px">ยกเลิก</button>
+            <button class="btn-primary" style="flex:1;font-size:12px">✅ ยืนยันส่ง</button>
+          </div>
+        </div>
+      </div>
+    </div>`
+},
+
+// ── 11. CUSTOMER RECEIVES LINE MSG ─────────────────────────────────────
+{
+  chapter: 2,
+  title: '💚 ลูกค้าได้รับข้อความใน LINE',
+  left: `
+    <div class="mb-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4" style="background:#064e3b;color:#6ee7b7">ADMIN — SEND MESSAGE (4/4)</div>
+      <h2 class="text-2xl font-bold text-white mb-3">ลูกค้าเห็นข้อความใน LINE Chat</h2>
+      <p class="text-gray-400 text-sm leading-relaxed mb-4">ระบบส่งผ่าน LINE <strong class="text-white">pushMessage API</strong> — ข้อความจะปรากฏใน chat ของลูกค้าทันที พร้อม Order Code ที่ unique</p>
+    </div>
+    <div class="space-y-3">
+      <div class="toast">✅ ส่งข้อความสำเร็จ! Order <strong>THU-260226-JWD/0043</strong> ถูกสร้างแล้ว</div>
+      <div class="highlight-box">
+        <div class="text-xs font-bold text-green-400 mb-2">📦 Orders table (ใหม่)</div>
+        <div class="font-mono text-xs text-gray-300 leading-relaxed">
+order_code: <span class="text-yellow-400">THU-260226-JWD/0043</span><br/>
+status: <span class="text-yellow-300">PENDING</span><br/>
+account_type: <span class="text-blue-400">VAT</span><br/>
+expires_at: <span class="text-orange-400">NOW() + 6 hours</span>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="icon" style="background:#7c2d12">⏰</div>
+        <div>
+          <div class="text-white text-xs font-semibold">6 ชั่วโมงนับถอยหลัง</div>
+          <div class="text-gray-400 text-xs">ถ้าไม่ได้รับ PAYMENT_THANKS → UNCONFIRMED อัตโนมัติ</div>
+        </div>
+      </div>
+    </div>`,
+  right: `
+    <div class="flex justify-center">
+      <div class="phone" style="max-width:260px">
+        <div class="phone-notch"><div class="phone-notch-pill"></div></div>
+        <div class="phone-status"><span>9:47</span><span>●●● 100%</span></div>
+        <div class="line-header">
+          <div style="font-size:16px;cursor:pointer">←</div>
+          <div class="line-avatar">JW</div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:700">JWD Company</div>
+            <div style="font-size:10px;opacity:.8">Official Account</div>
+          </div>
+          <div style="font-size:16px">⋯</div>
+        </div>
+        <div class="line-chat-bg">
+          <!-- Old message -->
+          <div style="text-align:center;font-size:10px;color:#666;background:rgba(0,0,0,.1);padding:4px 10px;border-radius:10px;align-self:center">วันนี้</div>
+          <div class="line-msg-oa">
+            <div class="line-avatar" style="width:26px;height:26px;font-size:10px;flex-shrink:0">JW</div>
+            <div>
+              <div class="bubble">สวัสดีค่ะ ยินดีต้อนรับ 🙏<br/>สามารถสอบถามสินค้าได้เลยค่ะ</div>
+              <div class="line-time">09:30</div>
+            </div>
+          </div>
+          <div class="line-msg-self">
+            <div class="line-time">09:32</div>
+            <div class="bubble">สนใจสินค้าค่ะ</div>
+          </div>
+          <!-- NEW message from system (Flex-style) -->
+          <div class="line-msg-oa" style="animation:fadeMsg .6s ease-out">
+            <div class="line-avatar" style="width:26px;height:26px;font-size:10px;flex-shrink:0">JW</div>
+            <div>
+              <div class="bubble" style="background:#fff;border:2px solid #16a34a;border-radius:12px;padding:10px 12px;white-space:pre-line;color:#0f172a;font-weight:600">
+Flex Message (สรุปยอดค่าสินค้า)
+────────────────
+สรุปยอดค่าสินค้า
+────────────────
+รหัสออเดอร์:
+THU-260226-JWD/0043
+ประเภทบัญชี: รวม VAT
+ยอดรวม: 12,500 บาท
+ชำระภายใน: 27/02/2026
+
+หากมีข้อสงสัยแจ้งทีมงานได้เลยค่ะ
+              </div>
+              <div class="line-time">09:47 ✓✓</div>
+            </div>
+          </div>
+        </div>
+        <div class="line-input">
+          <div style="font-size:18px;cursor:pointer">+</div>
+          <input placeholder="พิมพ์ข้อความ..." style="pointer-events:none"/>
+          <div class="line-send-btn">➤</div>
+        </div>
+      </div>
+    </div>
+    <style>@keyframes fadeMsg{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}</style>`
+},
+
+// ── 12. PAYMENT THANKS → CONFIRMED ────────────────────────────────────
+{
+  chapter: 2,
+  title: '✅ Admin ส่ง "ขอบคุณ" → Order CONFIRMED',
+  left: `
+    <div class="mb-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4" style="background:#064e3b;color:#6ee7b7">ORDER CONFIRMATION</div>
+      <h2 class="text-2xl font-bold text-white mb-3">ลูกค้าชำระเงิน → Admin ยืนยัน</h2>
+      <p class="text-gray-400 text-sm leading-relaxed mb-4">เมื่อลูกค้าโอนเงิน Admin เลือก <strong class="text-white">ขอบคุณการชำระเงิน</strong> — ระบบ UPDATE order status เป็น <code class="text-green-400">CONFIRMED</code> อัตโนมัติ</p>
+    </div>
+    <div class="space-y-3">
+      <div class="highlight-box">
+        <div class="text-xs font-bold text-green-400 mb-2">SQL ที่รัน (ใน Transaction)</div>
+        <div class="font-mono text-xs text-gray-300 leading-relaxed">
+<span class="text-yellow-400">UPDATE</span> orders<br/>
+<span class="text-yellow-400">SET</span> status = <span class="text-green-400">'CONFIRMED'</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;confirmed_at = NOW()<br/>
+<span class="text-yellow-400">WHERE</span> line_uid = $1<br/>
+&nbsp;&nbsp;<span class="text-yellow-400">AND</span> status = <span class="text-yellow-300">'PENDING'</span><br/>
+&nbsp;&nbsp;<span class="text-yellow-400">AND</span> expires_at > NOW()<br/>
+ORDER BY created_at DESC<br/>
+LIMIT 1
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="icon" style="background:#064e3b">✅</div>
+        <div>
+          <div class="text-white text-xs font-semibold">LIMIT 1 + ORDER BY created_at DESC</div>
+          <div class="text-gray-400 text-xs">ป้องกัน confirm ผิด Order — จับ Order ล่าสุดเท่านั้น</div>
+        </div>
+      </div>
+    </div>`,
+  right: `
+    <div class="flex justify-center gap-4 items-start">
+      <!-- Admin sends form -->
+      <div style="width:200px">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:8px;text-align:center">👨‍💼 Admin ส่ง</div>
+      <div style="background:#fff;border-radius:8px;border:1px solid #e2e8f0;padding:12px">
+        <div style="font-size:10px;color:#64748b;margin-bottom:6px">ลูกค้า: <span style="color:#1e293b;font-weight:600">สมชาย (CUST-042)</span></div>
+        <div style="font-size:10px;color:#64748b;margin-bottom:10px">Template: <span class="badge badge-confirmed">PAYMENT_THANKS</span></div>
+        <div style="font-size:10px;font-family:monospace;background:#f0fdf4;border-radius:6px;padding:8px;color:#1e293b;line-height:1.6;white-space:pre-line;margin-bottom:10px">✅ ยืนยันรับชำระเงิน
+━━━━━━━━━━━━
+รหัสออเดอร์:
+THU-260226-JWD/0043
+ได้รับชำระเรียบร้อยค่ะ 📦
+JWD Company</div>
+        <button class="btn-primary" style="width:100%;font-size:11px">✅ ยืนยันส่ง</button>
+      </div>
+    </div>
+      <!-- Arrow -->
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding-top:80px">
+        <div style="font-size:20px">→</div>
+        <div style="font-size:9px;color:#64748b;text-align:center">DB Update<br/>+ LINE Push</div>
+      </div>
+      <!-- DB result -->
+      <div style="width:200px">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:8px;text-align:center">🗄 DB อัพเดท</div>
+        <div class="db-view" style="font-size:10px">
+          <div class="db-header" style="font-size:10px">orders</div>
+          <div style="padding:8px">
+            <table class="db-table-inner" style="width:100%;font-size:10px">
+              <tr><th>field</th><th>value</th></tr>
+              <tr><td style="color:#94a3b8">order_code</td><td style="color:#fcd34d">THU-...-0043</td></tr>
+              <tr><td style="color:#94a3b8">status</td><td><span class="badge badge-confirmed">CONFIRMED</span></td></tr>
+              <tr><td style="color:#94a3b8">confirmed_at</td><td style="color:#7ee787">NOW() ✓</td></tr>
+            </table>
+          </div>
+        </div>
+        <div style="margin-top:8px">
+          <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:6px;text-align:center">💚 LINE Chat</div>
+          <div style="background:#dbeafe;border-radius:10px;padding:8px;display:flex;gap:8px;align-items:flex-start">
+            <div class="line-avatar" style="width:22px;height:22px;font-size:9px;flex-shrink:0;background:#f25c4d;color:#fff">JW</div>
+            <div>
+              <div style="background:#fff;border-radius:10px;padding:10px 12px;box-shadow:0 2px 6px rgba(0,0,0,0.08)">
+                <div style="font-size:10px;font-weight:700;color:#111827;margin-bottom:4px">Flex Message</div>
+<div style="font-size:10px;line-height:1.6;color:#374151;white-space:pre-line">
+ยืนยันรับชำระค่ะ
+รหัส: THU-260226-JWD/0043
+ขอบคุณมากค่ะ</div>
+              </div>
+              <div style="font-size:9px;color:#6b7280;margin-top:4px">Flex bubble (thank you)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`
+},
+
+// ── 13. ORDER EXPIRY ───────────────────────────────────────────────────
+{
+  chapter: 2,
+  title: '⏰ Auto-Expire: PENDING → UNCONFIRMED',
+  left: `
+    <div class="mb-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4" style="background:#7c2d12;color:#fca5a5">AUTO EXPIRY</div>
+      <h2 class="text-2xl font-bold text-white mb-3">6 ชั่วโมงผ่านไป → UNCONFIRMED</h2>
+      <p class="text-gray-400 text-sm leading-relaxed mb-4">Docker <code class="text-green-400">cron</code> container รัน curl ทุก 15 นาที — เรียก <code class="text-green-400">POST /api/cron/expire-orders</code> เพื่ออัพเดท order ที่หมดเวลา</p>
+    </div>
+    <div class="space-y-3">
+      <div class="highlight-box" style="background:#2d1515;border-color:#ef4444">
+        <div class="text-xs font-bold text-red-400 mb-2">SQL ที่รัน (ทุก 15 นาที)</div>
+        <div class="font-mono text-xs text-gray-300 leading-relaxed">
+<span class="text-yellow-400">UPDATE</span> orders<br/>
+<span class="text-yellow-400">SET</span> status = <span class="text-red-400">'UNCONFIRMED'</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;updated_at = NOW()<br/>
+<span class="text-yellow-400">WHERE</span> status = <span class="text-yellow-300">'PENDING'</span><br/>
+&nbsp;&nbsp;<span class="text-yellow-400">AND</span> expires_at <span class="text-red-400">&lt;</span> NOW()
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="icon" style="background:#1e293b">🔐</div>
+        <div>
+          <div class="text-white text-xs font-semibold">Secured by CRON_SECRET</div>
+          <div class="text-gray-400 text-xs">Bearer token ป้องกันไม่ให้คนอื่นเรียก endpoint นี้</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="icon" style="background:#1e293b">🐳</div>
+        <div>
+          <div class="text-white text-xs font-semibold">Docker curl container</div>
+          <div class="text-gray-400 text-xs">ทำงานใน Docker network — ไม่ต้องเปิด public</div>
+        </div>
+      </div>
+    </div>`,
+  right: `
+    <div class="space-y-4">
+      <!-- Timeline -->
+      <div style="background:#1e293b;border-radius:10px;padding:16px">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:12px">📅 Timeline ของ Order</div>
+        <div style="position:relative;padding-left:20px">
+          <div style="position:absolute;left:6px;top:0;bottom:0;width:2px;background:#334155"></div>
+          ${[
+            ['09:47','#06C755','Admin ส่ง PRODUCT_SUMMARY','Order สร้าง → PENDING'],
+            ['10:00','#6366f1','Cron รัน (ทุก 15 นาที)','ยังไม่ expired — ไม่มีการเปลี่ยนแปลง'],
+            ['15:47','#ef4444','Cron รัน (ครั้งที่ 24)','expires_at < NOW() → เปลี่ยนเป็น UNCONFIRMED'],
+          ].map(([time,color,title,desc])=>`
+            <div style="position:relative;margin-bottom:14px;padding-left:10px">
+              <div style="position:absolute;left:-14px;top:3px;width:10px;height:10px;border-radius:50%;background:${color};border:2px solid #0f172a"></div>
+              <div style="font-size:10px;font-weight:700;color:${color}">${time}</div>
+              <div style="font-size:11px;font-weight:600;color:#f1f5f9">${title}</div>
+              <div style="font-size:10px;color:#64748b">${desc}</div>
+            </div>`).join('')}
+        </div>
+      </div>
+      <!-- DB final state -->
+      <div class="db-view">
+        <div class="db-header" style="color:#ef4444">🗄 orders — after expiry</div>
+        <div style="padding:8px;overflow-x:auto">
+          <table class="db-table-inner" style="width:100%">
+            <tr><th>order_code</th><th>status</th><th>expires_at</th></tr>
+            <tr>
+              <td style="color:#fcd34d">THU-...-0043</td>
+              <td><span class="badge badge-unconfirmed">UNCONFIRMED</span></td>
+              <td style="color:#ef4444">ผ่านไปแล้ว</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>`
+},
+
+// ── 14. ADMIN — ORDERS TABLE ────────────────────────────────────────────
+{
+  chapter: 2,
+  title: '📦 Admin ดูตาราง Orders + Filter',
+  left: `
+    <div class="mb-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4" style="background:#1e3a5f;color:#93c5fd">ADMIN — ORDERS</div>
+      <h2 class="text-2xl font-bold text-white mb-3">Orders Table พร้อม Filter</h2>
+      <p class="text-gray-400 text-sm leading-relaxed mb-4">Admin กรองข้อมูลได้ด้วย Customer Code, วันที่, และสถานะ — Server-side pagination ทุก 50 rows</p>
+    </div>
+    <div class="space-y-3">
+      <div class="flow-step">
+        <div class="icon" style="background:#064e3b">🟢</div>
+        <div><div class="text-white text-xs font-semibold">CONFIRMED</div><div class="text-gray-400 text-xs">Admin ส่ง PAYMENT_THANKS แล้ว</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="icon" style="background:#7c5800">🟡</div>
+        <div><div class="text-white text-xs font-semibold">PENDING</div><div class="text-gray-400 text-xs">รอยืนยัน ยังไม่หมดเวลา</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="icon" style="background:#7c2020">🔴</div>
+        <div><div class="text-white text-xs font-semibold">UNCONFIRMED</div><div class="text-gray-400 text-xs">หมดเวลา 6h โดยไม่มีการยืนยัน</div></div>
+      </div>
+      <div class="highlight-box" style="margin-top:4px">
+        <div class="text-xs font-bold text-green-400 mb-1">API Endpoint</div>
+        <div class="font-mono text-xs text-gray-300">GET /api/orders?<br/>&nbsp;&nbsp;customer_code=CUST-042<br/>&nbsp;&nbsp;&date_from=2026-02-01<br/>&nbsp;&nbsp;&status=CONFIRMED</div>
+      </div>
+    </div>`,
+  right: `
+    <div class="browser">
+      <div class="browser-chrome">
+        <div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#ffbd2e"></div><div class="dot" style="background:#28c840"></div>
+        <div class="browser-addr">yourdomain.com/admin/orders</div>
+      </div>
+      <div class="browser-body" style="display:flex;min-height:400px">
+        <div class="admin-sidebar">
+          <div class="sidebar-logo"><div class="flex items-center gap-2"><div class="logo-icon">L</div><span style="font-size:12px;font-weight:700;color:#f1f5f9">LINE OA</span></div></div>
+          <div class="nav-item"> Dashboard</div>
+          <div class="nav-item">👥 ลูกค้า</div>
+          <div class="nav-item">📨 ส่งข้อความ</div>
+          <div class="nav-item">📋 ประวัติข้อความ</div>
+          <div class="nav-item active">📦 ออเดอร์</div>
+        </div>
+        <div class="admin-content">
+          <div class="admin-topbar"><div style="font-size:13px;font-weight:700;color:#1e293b">ออเดอร์</div></div>
+          <div class="admin-body">
+            <!-- Filter bar -->
+            <div class="filter-bar" style="margin-bottom:12px">
+              <div>
+                <label class="form-label">Customer Code</label>
+                <input class="form-input" placeholder="CUST-..." style="width:100px;color:#1e293b"/>
+              </div>
+              <div>
+                <label class="form-label">วันที่เริ่ม</label>
+                <input class="form-input" type="date" value="2026-02-01" style="width:120px;color:#1e293b"/>
+              </div>
+              <div>
+                <label class="form-label">สถานะ</label>
+                <select class="form-select" style="width:110px;color:#1e293b">
+                  <option>ทั้งหมด</option>
+                  <option selected>CONFIRMED</option>
+                  <option>PENDING</option>
+                  <option>UNCONFIRMED</option>
+                </select>
+              </div>
+              <button class="btn-primary" style="align-self:flex-end">ค้นหา</button>
+            </div>
+            <div style="background:#fff;border-radius:8px;border:1px solid #e2e8f0;overflow:hidden">
+              <table class="data-table">
+                <tr><th>Order Code</th><th>ลูกค้า</th><th>ประเภทบัญชี</th><th>สถานะ</th><th>ยืนยันเมื่อ</th></tr>
+                <tr>
+                  <td style="font-family:monospace;font-weight:600;color:#1e293b;font-size:10px">THU-260226-JWD/0043</td>
+                  <td><span style="color:#06C755;font-weight:600">CUST-042</span> สมชาย</td>
+                  <td><span class="badge badge-vat">VAT</span></td>
+                  <td><span class="badge badge-confirmed">CONFIRMED</span></td>
+                  <td style="color:#94a3b8">09:52</td>
+                </tr>
+                <tr>
+                  <td style="font-family:monospace;font-weight:600;color:#1e293b;font-size:10px">WED-250226-JWD/0041</td>
+                  <td><span style="color:#06C755;font-weight:600">CUST-039</span> มาลี</td>
+                  <td><span class="badge" style="background:#ede9fe;color:#5b21b6">NON-VAT</span></td>
+                  <td><span class="badge badge-confirmed">CONFIRMED</span></td>
+                  <td style="color:#94a3b8">เมื่อวาน</td>
+                </tr>
+                <tr>
+                  <td style="font-family:monospace;font-weight:600;color:#1e293b;font-size:10px">TUE-240226-JWD/0038</td>
+                  <td><span style="color:#06C755;font-weight:600">CUST-036</span> ปิยะ</td>
+                  <td><span class="badge badge-vat">VAT</span></td>
+                  <td><span class="badge badge-unconfirmed">UNCONFIRMED</span></td>
+                  <td style="color:#94a3b8">—</td>
+                </tr>
+              </table>
+              <div style="padding:8px 10px;background:#f8fafc;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:11px;color:#94a3b8">แสดง 3 จาก 89 รายการ</span>
+                <div style="display:flex;gap:4px">
+                  <button class="btn-secondary" style="padding:4px 10px;font-size:11px">← ก่อนหน้า</button>
+                  <button class="btn-secondary" style="padding:4px 10px;font-size:11px">ถัดไป →</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`
+},
+
+// ── 15. CUSTOMERS + UTM TABLE ──────────────────────────────────────────
+{
+  chapter: 2,
+  title: '👥 Customer List พร้อม UTM Source',
+  left: `
+    <div class="mb-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4" style="background:#1e3a5f;color:#93c5fd">ADMIN — CUSTOMERS</div>
+      <h2 class="text-2xl font-bold text-white mb-3">ดูข้อมูลลูกค้า + แหล่งที่มา</h2>
+      <p class="text-gray-400 text-sm leading-relaxed mb-4">หัวใจของระบบ — Admin เห็นว่าลูกค้าแต่ละคน <strong class="text-white">มาจาก Campaign ไหน</strong> ใน Ads ช่วยให้ Marketing วัด Lead Quality ได้</p>
+    </div>
+    <div class="space-y-3">
+      <div class="flow-step">
+        <div class="icon" style="background:#064e3b">📡</div>
+        <div>
+          <div class="text-white text-xs font-semibold">JOIN utm_sessions</div>
+          <div class="text-gray-400 text-xs">ดึง utm_source, utm_campaign มาแสดงในตาราง</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="icon" style="background:#1e3a5f">🔍</div>
+        <div>
+          <div class="text-white text-xs font-semibold">Filter: date_from, date_to, utm_source</div>
+          <div class="text-gray-400 text-xs">กรองได้ทันที — server-side pagination</div>
+        </div>
+      </div>
+      <div class="highlight-box">
+        <div class="text-xs font-bold text-green-400 mb-1">ประโยชน์ต่อ Marketing Team</div>
+        <div class="text-xs text-gray-300 leading-relaxed">
+          เห็นว่า Facebook / Google / TikTok<br/>
+          ส่ง lead ที่ convert ได้ดีแค่ไหน<br/>
+          → ปรับ budget allocation ได้ถูกต้อง
+        </div>
+      </div>
+    </div>`,
+  right: `
+    <div class="browser">
+      <div class="browser-chrome">
+        <div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#ffbd2e"></div><div class="dot" style="background:#28c840"></div>
+        <div class="browser-addr">yourdomain.com/admin/customers</div>
+      </div>
+      <div class="browser-body" style="display:flex;min-height:400px">
+        <div class="admin-sidebar">
+          <div class="sidebar-logo"><div class="flex items-center gap-2"><div class="logo-icon">L</div><span style="font-size:12px;font-weight:700;color:#f1f5f9">LINE OA</span></div></div>
+          <div class="nav-item"> Dashboard</div>
+          <div class="nav-item active">👥 ลูกค้า</div>
+          <div class="nav-item">📨 ส่งข้อความ</div>
+          <div class="nav-item">📋 ประวัติข้อความ</div>
+          <div class="nav-item">📦 ออเดอร์</div>
+        </div>
+        <div class="admin-content">
+          <div class="admin-topbar"><div style="font-size:13px;font-weight:700;color:#1e293b">ลูกค้าทั้งหมด <span style="color:#94a3b8;font-weight:400">(1,234)</span></div></div>
+          <div class="admin-body">
+            <div class="filter-bar" style="margin-bottom:10px">
+              <div>
+                <label class="form-label">วันที่เข้ามา</label>
+                <div style="display:flex;gap:4px;align-items:center">
+                  <input class="form-input" type="date" value="2026-02-01" style="width:110px;color:#1e293b"/>
+                  <span style="font-size:10px;color:#94a3b8">ถึง</span>
+                  <input class="form-input" type="date" value="2026-02-26" style="width:110px;color:#1e293b"/>
+                </div>
+              </div>
+              <div>
+                <label class="form-label">UTM Source</label>
+                <select class="form-select" style="width:100px;color:#1e293b">
+                  <option>ทั้งหมด</option>
+                  <option selected>facebook</option>
+                  <option>google</option>
+                  <option>tiktok</option>
+                </select>
+              </div>
+              <button class="btn-primary" style="align-self:flex-end">ค้นหา</button>
+            </div>
+            <div style="background:#fff;border-radius:8px;border:1px solid #e2e8f0;overflow:hidden">
+              <table class="data-table">
+                <tr><th>Code</th><th>ชื่อ LINE</th><th>แหล่งที่มา</th><th>Campaign</th><th>เข้ามาเมื่อ</th></tr>
+                <tr>
+                  <td style="color:#06C755;font-weight:700">CUST-042</td>
+                  <td style="display:flex;align-items:center;gap:5px"><div class="avatar" style="width:20px;height:20px;font-size:9px">ส</div>สมชาย ใจดี</td>
+                  <td><span class="utm-tag">facebook</span></td>
+                  <td style="font-size:10px;color:#475569">summer2025</td>
+                  <td style="color:#94a3b8;font-size:10px">26/02 09:41</td>
+                </tr>
+                <tr>
+                  <td style="color:#06C755;font-weight:700">CUST-041</td>
+                  <td style="display:flex;align-items:center;gap:5px"><div class="avatar" style="width:20px;height:20px;font-size:9px;background:#6366f1">ม</div>มาลี สวยงาม</td>
+                  <td><span class="utm-tag" style="background:#f0fdf4;color:#166534;border-color:#bbf7d0">facebook</span></td>
+                  <td style="font-size:10px;color:#475569">summer2025</td>
+                  <td style="color:#94a3b8;font-size:10px">26/02 08:15</td>
+                </tr>
+                <tr>
+                  <td style="color:#06C755;font-weight:700">CUST-040</td>
+                  <td style="display:flex;align-items:center;gap:5px"><div class="avatar" style="width:20px;height:20px;font-size:9px;background:#f59e0b">ป</div>ปิยะ รักไทย</td>
+                  <td><span class="utm-tag" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe">google</span></td>
+                  <td style="font-size:10px;color:#475569">brand_kw</td>
+                  <td style="color:#94a3b8;font-size:10px">25/02 14:22</td>
+                </tr>
+                <tr>
+                  <td style="color:#06C755;font-weight:700">CUST-039</td>
+                  <td style="display:flex;align-items:center;gap:5px"><div class="avatar" style="width:20px;height:20px;font-size:9px;background:#ec4899">น</div>นารี รักษ์ดี</td>
+                  <td><span class="utm-tag" style="background:#fdf4ff;color:#7e22ce;border-color:#e9d5ff">tiktok</span></td>
+                  <td style="font-size:10px;color:#475569">viral_clip</td>
+                  <td style="color:#94a3b8;font-size:10px">25/02 10:05</td>
+                </tr>
+              </table>
+              <div style="padding:8px 10px;background:#f8fafc;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:11px;color:#94a3b8">แสดง 4 จาก 1,234 รายการ</span>
+                <div style="display:flex;gap:4px">
+                  <button class="btn-secondary" style="padding:4px 10px;font-size:11px">← ก่อนหน้า</button>
+                  <button class="btn-secondary" style="padding:4px 10px;font-size:11px;background:#06C755;color:#fff;border-color:#06C755">ถัดไป →</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`
+},
+
+]; // end scenes
+
+// ─────────────────────────────────────────────────────────────────────────
+// NAVIGATION
+// ─────────────────────────────────────────────────────────────────────────
+let current = 0;
+
+function render() {
+  const s = scenes[current];
+  const wrap = document.getElementById('scenes-wrap');
+
+  wrap.innerHTML = `
+    <div class="scene-enter" style="display:grid;grid-template-columns:2fr 3fr;gap:24px;align-items:start">
+      <div>${s.left}</div>
+      <div>${s.right}</div>
+    </div>`;
+
+  stripEmojis(wrap);
+  setupTemplateToggle();
+
+  // Chapter badge
+  const badge = document.getElementById('chapter-badge');
+  if (s.chapter === 1) {
+    badge.textContent = 'Chapter 1: Customer Journey';
+    badge.style.background = '#fff3ed';
+    badge.style.color = '#f25c4d';
+  } else {
+    badge.textContent = 'Chapter 2: Admin System';
+    badge.style.background = '#ffe1d6';
+    badge.style.color = '#d97706';
+  }
+
+  // Counter + progress
+  document.getElementById('scene-counter').textContent = `Scene ${current+1} / ${scenes.length}`;
+  document.getElementById('scene-title').textContent = stripEmojiString(s.title);
+  document.getElementById('progress-bar').style.width = `${((current+1)/scenes.length)*100}%`;
+
+  // Dots
+  const dots = document.getElementById('scene-dots');
+  dots.innerHTML = scenes.map((sc,i) => `
+    <div onclick="jumpTo(${i})" style="
+      width:${i===current?18:8}px; height:8px; border-radius:4px;
+      cursor:pointer; transition:all .3s;
+      background:${i===current?(sc.chapter===1?'#06C755':'#3b82f6'):(i<current?'#374151':'#1e293b')};
+      border:1px solid ${i===current?(sc.chapter===1?'#06C755':'#3b82f6'):'#374151'};
+    " title="${stripEmojiString(sc.title)}"></div>
+  `).join('');
+
+  // Buttons
+  document.getElementById('prev-btn').disabled = current === 0;
+  document.getElementById('prev-btn').style.opacity = current === 0 ? '0.4' : '1';
+  const nextBtn = document.getElementById('next-btn');
+  if (current === scenes.length - 1) {
+    nextBtn.textContent = 'ดูอีกครั้ง';
+    nextBtn.onclick = () => jumpTo(0);
+  } else {
+    nextBtn.textContent = 'ถัดไป';
+    nextBtn.onclick = () => go(1);
+  }
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function go(dir) {
+  const next = current + dir;
+  if (next >= 0 && next < scenes.length) {
+    current = next;
+    render();
+  }
+}
+
+function jumpTo(i) {
+  current = i;
+  render();
+}
+
+function setupTemplateToggle() {
+  const select = document.getElementById('tpl-select');
+  const summary = document.getElementById('tpl-summary');
+  const shipping = document.getElementById('tpl-shipping');
+  if (!select || !summary || !shipping) return;
+  const toggle = () => {
+    const val = select.value;
+    summary.style.display = val === 'summary' ? 'block' : 'none';
+    shipping.style.display = val === 'shipping' ? 'block' : 'none';
+  };
+  select.addEventListener('change', toggle);
+  toggle();
+}
+
+function stripEmojiString(text) {
+  return text.replace(/[\p{Extended_Pictographic}\uFE0F\u200d]+/gu, '').trim();
+}
+
+// Strip emojis and collapse leftover whitespace for a cleaner, text-only look
+function stripEmojis(root) {
+  const emojiRegex = /[\p{Extended_Pictographic}\uFE0F\u200d]+/gu;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+  let node;
+  while ((node = walker.nextNode())) {
+    const cleaned = node.textContent
+      .replace(emojiRegex, '')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/^\s+/, '');
+    node.textContent = cleaned;
+  }
+}
+
+// Keyboard navigation
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') go(1);
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') go(-1);
+});
+
+render();
+</script>
+</body>
+</html>

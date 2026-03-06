@@ -1,0 +1,321 @@
+'use client';
+
+import { useState, useEffect, useMemo } from 'react';
+import Swal from 'sweetalert2';
+
+interface Customer {
+  id: number;
+  customer_code: string;
+  display_name: string;
+}
+
+interface AccountTypeOption {
+  id: number;
+  code: string;
+  label: string;
+  account_name: string | null;
+  account_number: string | null;
+  is_active: boolean;
+  sort_order: number;
+}
+
+const TEMPLATE_TYPES = [
+  { value: 'INVOICE', label: 'แจ้งค่าส่ง (Shipping Bill)', accent: '#f57c00' },
+  { value: 'IMPORT_INVOICE', label: 'ใบแจ้งหนี้นำเข้า (Import Invoice)', accent: '#1565c0' },
+  { value: 'CONFIRM', label: 'ยืนยันคำสั่งซื้อ', accent: '#2e7d32' },
+  { value: 'RECEIPT', label: 'ใบเสร็จ', accent: '#6a1b9a' },
+] as const;
+
+type TemplateType = typeof TEMPLATE_TYPES[number]['value'];
+
+function toNum(v: string) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function money(v: number) {
+  return `${v.toLocaleString(undefined, { maximumFractionDigits: 2 })} บาท`;
+}
+
+function extractApiError(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return 'Request failed';
+  const p = payload as Record<string, unknown>;
+  if (typeof p.error === 'string') return p.error;
+  if (p.error && typeof p.error === 'object') {
+    const flattened = p.error as Record<string, unknown>;
+    const formErrors = flattened.formErrors;
+    if (Array.isArray(formErrors) && typeof formErrors[0] === 'string') return formErrors[0];
+  }
+  return 'Request failed';
+}
+
+export default function SendMessagePage() {
+  const [search, setSearch] = useState('');
+  const [suggestions, setSuggestions] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [templateType, setTemplateType] = useState<TemplateType>('INVOICE');
+  const [accountType, setAccountType] = useState('');
+  const [accountTypes, setAccountTypes] = useState<AccountTypeOption[]>([]);
+  const [amount, setAmount] = useState('');
+  const [exchangeRate, setExchangeRate] = useState('');
+  const [exchangeRateCurrency, setExchangeRateCurrency] = useState<'USD' | 'CNY' | 'THB'>('CNY');
+  const [applyVat, setApplyVat] = useState(false);
+  const [applyWithholding, setApplyWithholding] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; orderCode?: string; lineError?: string } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/account-types', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((data) => {
+        const rows = (data.accountTypes || []).filter((x: AccountTypeOption) => x.is_active);
+        setAccountTypes(rows);
+        if (!accountType && rows[0]) setAccountType(rows[0].code);
+      })
+      .catch(() => setAccountTypes([]));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const saved = localStorage.getItem('exchangeRateCurrency');
+    if (saved === 'USD' || saved === 'CNY' || saved === 'THB') {
+      setExchangeRateCurrency(saved);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('exchangeRateCurrency', exchangeRateCurrency);
+  }, [exchangeRateCurrency]);
+
+  useEffect(() => {
+    if (!search || selectedCustomer) return;
+    const t = setTimeout(() => {
+      fetch(`/api/customers/search?q=${encodeURIComponent(search)}`, { credentials: 'include' })
+        .then((r) => r.json())
+        .then(setSuggestions)
+        .catch(() => setSuggestions([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [search, selectedCustomer]);
+
+  const autoBaseAmount = useMemo(() => toNum(amount) * toNum(exchangeRate), [amount, exchangeRate]);
+
+  const summary = useMemo(() => {
+    const base = autoBaseAmount;
+    const vatAmount = applyVat ? base * 0.07 : 0;
+    const withholdingAmount = applyWithholding ? base * 0.03 : 0;
+    const netTotal = base + vatAmount - withholdingAmount;
+    return { base, vatAmount, withholdingAmount, netTotal };
+  }, [autoBaseAmount, applyVat, applyWithholding]);
+
+  const meta = TEMPLATE_TYPES.find((x) => x.value === templateType) || TEMPLATE_TYPES[0];
+  const previewOrderCode = 'ORD-INV-YYMMDD-001';
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedCustomer) return;
+
+    const templateLabel = TEMPLATE_TYPES.find((t) => t.value === templateType)?.label ?? templateType;
+    const confirmed = await Swal.fire({
+      title: 'ยืนยันการส่งข้อความ?',
+      html: `
+        <div style="text-align:left;font-size:14px;line-height:2">
+          <div><b>ลูกค้า:</b> ${selectedCustomer.customer_code} — ${selectedCustomer.display_name}</div>
+          <div><b>Template:</b> ${templateLabel}</div>
+          ${summary.netTotal ? `<div><b>ยอดสุทธิ:</b> ${money(summary.netTotal)}</div>` : ''}
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#0b57b7',
+      cancelButtonColor: '#8a94a4',
+      confirmButtonText: 'ส่งข้อความ',
+      cancelButtonText: 'ยกเลิก',
+      reverseButtons: true,
+    });
+    if (!confirmed.isConfirmed) return;
+
+    setSending(true);
+    setResult(null);
+    try {
+      const res = await fetch('/api/messages/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          customerId: selectedCustomer.id,
+          templateType,
+          accountType: accountType || undefined,
+          amount: amount ? Number(amount) : undefined,
+          exchangeRate: exchangeRate ? Number(exchangeRate) : undefined,
+          exchangeRateCurrency,
+          totalAmount: summary.base || undefined,
+          applyVat,
+          applyWithholding,
+          vatAmount: summary.vatAmount || undefined,
+          withholdingAmount: summary.withholdingAmount || undefined,
+          netTotal: summary.netTotal || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setResult({ ok: false, lineError: extractApiError(data) });
+        Swal.fire({ icon: 'error', title: 'ส่งไม่สำเร็จ', text: extractApiError(data) });
+        return;
+      }
+      setResult(data);
+      Swal.fire({ icon: 'success', title: 'ส่งสำเร็จ!', text: `Order: ${data.orderCode}`, timer: 2000, showConfirmButton: false });
+    } catch {
+      setResult({ ok: false, lineError: 'Unable to connect' });
+      Swal.fire({ icon: 'error', title: 'เชื่อมต่อไม่ได้', text: 'Unable to connect to server' });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <section>
+      <h1 className="page-title">ส่งข้อความ Flex Message</h1>
+      <p className="page-subtitle">ส่งตาม template และดู Flex preview ด้านขวาแบบเรียลไทม์</p>
+
+      <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'minmax(320px, 1fr) minmax(300px, 420px)', alignItems: 'start' }}>
+        <div className="table-shell" style={{ padding: 18 }}>
+          <form onSubmit={handleSend}>
+            <label className="field-label">Customer *</label>
+            {selectedCustomer ? (
+              <div className="input" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#ecf9f2', marginBottom: 10 }}>
+                <span>{selectedCustomer.customer_code} - {selectedCustomer.display_name}</span>
+                <button type="button" onClick={() => { setSelectedCustomer(null); setSearch(''); }} style={{ background: 'transparent', border: 0, cursor: 'pointer' }}>x</button>
+              </div>
+            ) : (
+              <div style={{ position: 'relative' }}>
+                <input
+                  className="input"
+                  style={{ width: '100%' }}
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by name or code"
+                />
+                {suggestions.length > 0 && (
+                  <div className="table-shell" style={{ position: 'absolute', top: 44, zIndex: 20, width: '100%', background: '#fff' }}>
+                    {suggestions.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        style={{ width: '100%', textAlign: 'left', border: 0, background: '#fff', padding: 10, borderBottom: '1px solid #f1f3f7', cursor: 'pointer' }}
+                        onClick={() => { setSelectedCustomer(c); setSuggestions([]); }}
+                      >
+                        <strong>{c.customer_code}</strong> - {c.display_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <label className="field-label">Template *</label>
+            <select className="select" style={{ width: '100%' }} value={templateType} onChange={(e) => setTemplateType(e.target.value as TemplateType)}>
+              {TEMPLATE_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+
+            <label className="field-label">Account Type</label>
+            <select
+              className="select"
+              style={{ width: '100%' }}
+              value={accountType}
+              onChange={(e) => setAccountType(e.target.value)}
+            >
+              <option value="">-- Select Account Type --</option>
+              {accountTypes.map((a) => (
+                <option key={a.id} value={a.code}>
+                  {a.label} ({a.code})
+                </option>
+              ))}
+            </select>
+
+            <label className="field-label">Amount</label>
+            <input className="input" style={{ width: '100%' }} type="number" value={amount} onChange={(e) => setAmount(e.target.value)} step="0.01" />
+
+          <label className="field-label">Exchange Rate</label>
+          <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 110px' }}>
+            <input className="input" style={{ width: '100%' }} type="number" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)} step="0.000001" />
+            <select
+              className="select"
+              style={{ width: '100%' }}
+              value={exchangeRateCurrency}
+              onChange={(e) => setExchangeRateCurrency(e.target.value as 'USD' | 'CNY' | 'THB')}
+            >
+              <option value="CNY">CNY</option>
+              <option value="USD">USD</option>
+              <option value="THB">THB</option>
+            </select>
+          </div>
+
+            <label className="field-label">Total (ฐานคำนวณ)</label>
+            <input
+              className="input"
+              style={{ width: '100%', background: '#f7f8fb', color: '#344054' }}
+              type="text"
+              value={summary.base.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              readOnly
+            />
+
+            <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, color: '#2a3547' }}>
+                <input type="checkbox" checked={applyVat} onChange={(e) => setApplyVat(e.target.checked)} />
+                  Vat 7% (ภาษีมูลค่าเพิ่ม)
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, color: '#2a3547' }}>
+                <input type="checkbox" checked={applyWithholding} onChange={(e) => setApplyWithholding(e.target.checked)} />
+                 หัก ณ ที่จ่าย 3%
+              </label>
+            </div>
+
+            {result && (
+              <div className={`badge ${result.ok ? 'badge-success' : 'badge-danger'}`} style={{ marginTop: 14 }}>
+                {result.ok ? `Sent successfully (${result.orderCode})` : (result.lineError || 'Error')}
+              </div>
+            )}
+
+            <button className="btn btn-primary" type="submit" disabled={!selectedCustomer || sending} style={{ marginTop: 16, width: '100%' }}>
+              {sending ? 'Sending...' : 'ส่ง Flex Message'}
+            </button>
+          </form>
+        </div>
+
+        <aside className="table-shell" style={{ padding: 14, position: 'sticky', top: 12 }}>
+          <p style={{ fontWeight: 800, color: '#0b57b7', marginBottom: 10 }}>Flex Preview</p>
+          <div style={{ border: '1px solid #eceff4', borderRadius: 16, overflow: 'hidden', background: '#fff' }}>
+            <div style={{ background: meta.accent, color: '#fff', padding: '12px 14px' }}>
+              <p style={{ fontSize: 15, fontWeight: 800 }}>{meta.label}</p>
+              <p style={{ fontSize: 12, opacity: 0.9, marginTop: 4 }}>{previewOrderCode}</p>
+            </div>
+            <div style={{ padding: 12, display: 'grid', gap: 8 }}>
+              <PreviewRow label="ประเภทบัญชี" value={accountType || '-'} />
+              <PreviewRow label="จำนวนเงิน" value={money(toNum(amount))} />
+              <PreviewRow label="อัตราแลกเปลี่ยน" value={exchangeRate ? `${exchangeRate} ${exchangeRateCurrency}` : '-'} />
+              <PreviewRow label="ยอดฐาน" value={money(summary.base)} />
+              {applyVat && <PreviewRow label="VAT 7%" value={money(summary.vatAmount)} />}
+              {applyWithholding && <PreviewRow label="หัก ณ ที่จ่าย 3%" value={money(summary.withholdingAmount)} />}
+              <PreviewRow label="ยอดสุทธิ" value={money(summary.netTotal)} emphasize />
+              <div style={{ borderTop: '1px solid #eef2f7', marginTop: 2, paddingTop: 8, fontSize: 12, color: '#64748b' }}>
+                {templateType === 'INVOICE' ? 'บิลค่าส่ง: ไม่มีวันหมดอายุอัตโนมัติ' : 'กรุณายืนยันภายใน 24 ชั่วโมง'}
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function PreviewRow({ label, value, emphasize = false }: { label: string; value: string; emphasize?: boolean }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 13, borderBottom: '1px solid #f2f4f8', paddingBottom: 6 }}>
+      <span style={{ color: '#64748b' }}>{label}</span>
+      <span style={{ fontWeight: emphasize ? 800 : 600, color: emphasize ? '#c95b00' : '#0f172a', textAlign: 'right' }}>{value}</span>
+    </div>
+  );
+}

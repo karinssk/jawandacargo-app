@@ -4,7 +4,10 @@
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "concurrently -n backend,frontend -c green,cyan \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "dev:db": "bash -lc 'docker compose up -d postgres && cid=$(docker compose ps -q postgres) && for i in {1..90}; do status=$(docker inspect -f \"{{.State.Health.Status}}\" \"$cid\" 2>/dev/null || true); [ \"$status\" = \"healthy\" ] && break; sleep 1; done && [ \"$(docker inspect -f \"{{.State.Health.Status}}\" \"$cid\" 2>/dev/null || true)\" = \"healthy\" ] && npm run dev || (echo \"Postgres did not become healthy in time\" >&2; exit 1)'",
+    "dev:db:down": "docker compose stop postgres"
   },
   "keywords": [],
   "author": "",
@@ -17,5 +20,8 @@
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
   }
 }
