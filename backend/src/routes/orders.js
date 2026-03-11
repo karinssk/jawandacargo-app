@@ -84,6 +84,57 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/orders/export?customer_code=&date=&status=&template_type=
+router.get('/export', requireAuth, async (req, res) => {
+  try {
+    const { customer_code, date, status, template_type } = req.query;
+
+    const conditions = [];
+    const params = [];
+    let idx = 1;
+
+    if (customer_code) {
+      conditions.push(`c.customer_code ILIKE $${idx++}`);
+      params.push(`%${customer_code}%`);
+    }
+    if (date) {
+      conditions.push(`DATE(o.created_at) = $${idx++}`);
+      params.push(date);
+    }
+    if (status) {
+      conditions.push(`o.status = $${idx++}`);
+      params.push(status);
+    }
+    if (template_type) {
+      conditions.push(`o.template_type = $${idx++}`);
+      params.push(template_type);
+    }
+
+    const where = conditions.length
+      ? `WHERE ${conditions.join(' AND ')} AND o.parent_order_id IS NULL`
+      : 'WHERE o.parent_order_id IS NULL';
+
+    const result = await pool.query(
+      `SELECT o.order_code, c.customer_code, c.display_name,
+              o.template_type, o.account_type,
+              o.amount, o.exchange_rate, o.exchange_rate_currency,
+              o.total_amount, o.status, o.stage,
+              o.seller_tracking_no, o.delivery_tracking_no,
+              o.confirmed_at, o.created_at
+       FROM orders o
+       LEFT JOIN customers c ON c.id = o.customer_id
+       ${where}
+       ORDER BY o.created_at DESC`,
+      params,
+    );
+
+    res.json({ ok: true, orders: result.rows });
+  } catch (err) {
+    console.error('[orders/export]', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/orders/:id  — full order detail
 router.get('/:id', requireAuth, async (req, res) => {
   const id = Number(req.params.id);

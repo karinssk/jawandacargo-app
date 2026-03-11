@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Swal from 'sweetalert2';
+import * as XLSX from 'xlsx';
 
 interface Order {
   id: number;
@@ -99,10 +100,87 @@ export default function OrdersPage() {
 
   const totalPages = Math.ceil(total / 50);
 
+  const EXPORT_HEADERS = ['Order Code', 'Customer Code', 'Name', 'Type', 'Account Type', 'Amount', 'Exchange Rate', 'Currency', 'Total', 'Status', 'Stage', 'Seller Tracking', 'Delivery Tracking', 'Confirmed At', 'Created At'];
+  const TEMPLATE_EXPORT_LABELS: Record<string, string> = { CONFIRM: 'คำสั่งซื้อสินค้า', IMPORT_INVOICE: 'ใบแจ้งหนี้นำเข้า', RECEIPT: 'ใบเสร็จรับเงิน' };
+  const STATUS_EXPORT_LABELS: Record<string, string> = { PENDING: 'รอยืนยัน', CONFIRMED: 'ยืนยันแล้ว', UNCONFIRMED: 'ยกเลิก' };
+
+  function buildExportParams() {
+    const params = new URLSearchParams();
+    if (customerCode) params.set('customer_code', customerCode);
+    if (date) params.set('date', date);
+    if (status) params.set('status', status);
+    return params;
+  }
+
+  function toRow(o: Record<string, unknown>) {
+    return [
+      o.order_code, o.customer_code, o.display_name,
+      TEMPLATE_EXPORT_LABELS[o.template_type as string] ?? o.template_type,
+      o.account_type ?? '-',
+      o.amount != null ? Number(o.amount) : '',
+      o.exchange_rate != null ? Number(o.exchange_rate) : '',
+      o.exchange_rate_currency ?? '',
+      o.total_amount != null ? Number(o.total_amount) : '',
+      STATUS_EXPORT_LABELS[o.status as string] ?? o.status,
+      o.stage,
+      o.seller_tracking_no ?? '',
+      o.delivery_tracking_no ?? '',
+      o.confirmed_at ? new Date(o.confirmed_at as string).toLocaleString('th-TH') : '',
+      new Date(o.created_at as string).toLocaleString('th-TH'),
+    ];
+  }
+
+  async function fetchExportData() {
+    const res = await fetch(`/api/orders/export?${buildExportParams()}`, { credentials: 'include' });
+    if (!res.ok) throw new Error('Export failed');
+    const data = await res.json();
+    return (data.orders || []) as Record<string, unknown>[];
+  }
+
+  async function handleExportCSV() {
+    try {
+      const rows = await fetchExportData();
+      const lines = [EXPORT_HEADERS, ...rows.map(toRow)];
+      const csv = lines.map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `orders_${date || 'all'}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Export failed', timer: 2500, showConfirmButton: false });
+    }
+  }
+
+  async function handleExportXLSX() {
+    try {
+      const rows = await fetchExportData();
+      const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS, ...rows.map(toRow)]);
+      const colWidths = EXPORT_HEADERS.map((h, i) => {
+        const max = Math.max(h.length, ...rows.map((r) => String(toRow(r)[i] ?? '').length));
+        return { wch: Math.min(max + 2, 40) };
+      });
+      ws['!cols'] = colWidths;
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Orders');
+      XLSX.writeFile(wb, `orders_${date || 'all'}.xlsx`);
+    } catch {
+      Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Export failed', timer: 2500, showConfirmButton: false });
+    }
+  }
+
   return (
     <section>
-      <h1 className="page-title">คำสั่งซื้อ ({total.toLocaleString()})</h1>
-      <p className="page-subtitle">ติดตาม purchase order หลักและสถานะ workflow</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+        <div>
+          <h1 className="page-title" style={{ margin: 0 }}>คำสั่งซื้อ ({total.toLocaleString()})</h1>
+          <p className="page-subtitle">ติดตาม purchase order หลักและสถานะ workflow</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button type="button" className="btn btn-soft" onClick={handleExportCSV} style={{ fontSize: 13 }}>⬇ CSV</button>
+          <button type="button" className="btn btn-soft" onClick={handleExportXLSX} style={{ fontSize: 13 }}>⬇ XLSX</button>
+        </div>
+      </div>
 
       <div className="filter-row">
         <input

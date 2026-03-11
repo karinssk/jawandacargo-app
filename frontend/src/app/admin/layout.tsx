@@ -22,6 +22,12 @@ const NAV_SECTIONS = [
       { href: '/admin/messages/account-types', label: 'Account Types', icon: '▤' },
     ],
   },
+  {
+    title: 'Developer',
+    items: [
+      { href: '/admin/dev', label: 'Dev Tools', icon: '⚠' },
+    ],
+  },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

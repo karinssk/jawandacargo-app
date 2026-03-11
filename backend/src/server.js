@@ -17,6 +17,7 @@ import ordersRouter from './routes/orders.js';
 import templatesRouter from './routes/templates.js';
 import accountTypesRouter from './routes/accountTypes.js';
 import cronRouter from './routes/cron.js';
+import devToolsRouter from './routes/devTools.js';
 
 const app = express();
 const PORT = process.env.PORT || 3101;
@@ -49,6 +50,9 @@ app.use('/api/account-types', accountTypesRouter);
 
 // Cron routes
 app.use('/api/cron', cronRouter);
+
+// Dev tools
+app.use('/api/dev', devToolsRouter);
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 

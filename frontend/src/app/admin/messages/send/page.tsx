@@ -183,7 +183,7 @@ export default function SendMessagePage() {
       setAmount(String(selectedOrder.amount));
     }
     if (!exchangeRate && selectedOrder.exchange_rate != null) {
-      setExchangeRate(String(selectedOrder.exchange_rate));
+      setExchangeRate(String(parseFloat(Number(selectedOrder.exchange_rate).toFixed(2))));
     }
     if (selectedOrder.exchange_rate_currency) {
       setExchangeRateCurrency(selectedOrder.exchange_rate_currency);
