@@ -85,7 +85,7 @@ export default function SendMessagePage() {
   const [applyVat, setApplyVat] = useState(false);
   const [applyWithholding, setApplyWithholding] = useState(false);
   const [sending, setSending] = useState(false);
-  const [result, setResult] = useState<{ ok: boolean; orderCode?: string; lineError?: string } | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; orderId?: number; orderCode?: string; lineError?: string } | null>(null);
 
   useEffect(() => {
     fetch('/api/account-types', { credentials: 'include' })
@@ -194,6 +194,7 @@ export default function SendMessagePage() {
         <div style="text-align:left;font-size:14px;line-height:2">
           <div><b>ลูกค้า:</b> ${selectedCustomer.customer_code} — ${selectedCustomer.display_name}</div>
           <div><b>Template:</b> ${templateLabel}</div>
+          ${selectedOrder ? `<div><b>Order Ref ID:</b> #${selectedOrder.id}</div>` : ''}
           ${selectedOrder ? `<div><b>อ้างอิง Order:</b> ${selectedOrder.order_code}</div>` : ''}
           ${effectiveNetTotal ? `<div><b>ยอดสุทธิ:</b> ${money(effectiveNetTotal)}</div>` : ''}
         </div>
@@ -238,7 +239,13 @@ export default function SendMessagePage() {
         return;
       }
       setResult(data);
-      Swal.fire({ icon: 'success', title: 'ส่งสำเร็จ!', text: `Order: ${data.orderCode}`, timer: 2000, showConfirmButton: false });
+      Swal.fire({
+        icon: 'success',
+        title: 'ส่งสำเร็จ!',
+        text: data.orderId ? `Order Ref #${data.orderId} • ${data.orderCode}` : `Order: ${data.orderCode}`,
+        timer: 2200,
+        showConfirmButton: false,
+      });
     } catch {
       setResult({ ok: false, lineError: 'Unable to connect' });
       Swal.fire({ icon: 'error', title: 'เชื่อมต่อไม่ได้', text: 'Unable to connect to server' });
@@ -310,7 +317,7 @@ export default function SendMessagePage() {
                   </option>
                   {eligibleOrders.map((order) => (
                     <option key={order.id} value={order.id}>
-                      {order.order_code} • {statusLabel(order.status)}
+                      #{order.id} • {order.order_code} • {statusLabel(order.status)}
                     </option>
                   ))}
                 </select>
@@ -319,6 +326,7 @@ export default function SendMessagePage() {
                   <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: '#f7f8fb', border: '1px solid #e5e7eb' }}>
                     <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>{selectedOrder.order_code}</div>
                     <div style={{ display: 'grid', gap: 6, fontSize: 13, color: '#475569' }}>
+                      <div>Order Ref ID: #{selectedOrder.id}</div>
                       <div>สถานะ: {statusLabel(selectedOrder.status)}</div>
                       <div>ประเภทบัญชี: {selectedOrder.account_type || '-'}</div>
                       <div>จำนวนเงิน: {money(Number(selectedOrder.amount || 0))}</div>
@@ -387,7 +395,9 @@ export default function SendMessagePage() {
 
             {result && (
               <div className={`badge ${result.ok ? 'badge-success' : 'badge-danger'}`} style={{ marginTop: 14 }}>
-                {result.ok ? `Sent successfully (${result.orderCode})` : (result.lineError || 'Error')}
+                {result.ok
+                  ? `Sent successfully (${result.orderId ? `#${result.orderId} • ` : ''}${result.orderCode})`
+                  : (result.lineError || 'Error')}
               </div>
             )}
 
@@ -408,6 +418,7 @@ export default function SendMessagePage() {
             <div style={{ background: meta.accent, color: '#fff', padding: '12px 14px' }}>
               <p style={{ fontSize: 15, fontWeight: 800 }}>{meta.label}</p>
               <p style={{ fontSize: 12, opacity: 0.9, marginTop: 4 }}>{previewOrderCode}</p>
+              {selectedOrder && <p style={{ fontSize: 11, opacity: 0.9, marginTop: 4 }}>Order Ref #{selectedOrder.id}</p>}
             </div>
             <div style={{ padding: 12, display: 'grid', gap: 8 }}>
               <PreviewRow label="ประเภทบัญชี" value={effectiveAccountType || '-'} />
