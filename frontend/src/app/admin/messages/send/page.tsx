@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
+import FlexPreview from '../../customers/[id]/FlexPreview';
+import type { TemplatePreviewConfig, TemplateType } from '../../../../lib/flexMessagePreview';
+import { buildPreviewFlexMessage, DEFAULT_TEMPLATE_CONFIGS } from '../../../../lib/flexMessagePreview';
 
 interface Customer {
   id: number;
@@ -40,8 +43,6 @@ const TEMPLATE_TYPES = [
   { value: 'RECEIPT', label: 'ใบเสร็จ', accent: '#6a1b9a', footer: 'ใบเสร็จสำหรับรายการที่ยืนยันแล้ว' },
 ] as const;
 
-type TemplateType = typeof TEMPLATE_TYPES[number]['value'];
-
 function toNum(v: string) {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -76,6 +77,7 @@ export default function SendMessagePage() {
   const [templateType, setTemplateType] = useState<TemplateType>('IMPORT_INVOICE');
   const [accountType, setAccountType] = useState('');
   const [accountTypes, setAccountTypes] = useState<AccountTypeOption[]>([]);
+  const [templateConfigs, setTemplateConfigs] = useState<TemplatePreviewConfig[]>([]);
   const [customerOrders, setCustomerOrders] = useState<OrderOption[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState('');
   const [loadingOrders, setLoadingOrders] = useState(false);
@@ -97,6 +99,13 @@ export default function SendMessagePage() {
       })
       .catch(() => setAccountTypes([]));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    fetch('/api/templates', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((data) => setTemplateConfigs(data.templates || []))
+      .catch(() => setTemplateConfigs([]));
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem('exchangeRateCurrency');
@@ -176,8 +185,34 @@ export default function SendMessagePage() {
   const effectiveBase = needsExistingOrder ? Number(selectedOrder?.total_amount || 0) : summary.base;
   const effectiveNetTotal = needsExistingOrder ? Number(selectedOrder?.total_amount || 0) : summary.netTotal;
 
-  const meta = TEMPLATE_TYPES.find((x) => x.value === templateType) || TEMPLATE_TYPES[0];
+  const selectedTemplateConfig = templateConfigs.find((item) => item.template_type === templateType) || DEFAULT_TEMPLATE_CONFIGS[templateType];
+  const selectedAccountMeta = accountTypes.find((item) => item.code === effectiveAccountType) || null;
   const previewOrderCode = selectedOrder?.order_code || 'IMP-INV-YYMMDD-001';
+  const previewFlexJson = JSON.stringify(
+    buildPreviewFlexMessage({
+      template: selectedTemplateConfig,
+      templateType,
+      orderCode: previewOrderCode,
+      orderId: selectedOrder?.id || 999,
+      accountType: effectiveAccountType || undefined,
+      amount: effectiveAmount,
+      exchangeRate: effectiveExchangeRate || undefined,
+      exchangeRateCurrency: effectiveExchangeRateCurrency,
+      totalAmount: effectiveBase,
+      applyVat: !needsExistingOrder && applyVat,
+      applyWithholding: !needsExistingOrder && applyWithholding,
+      vatAmount: !needsExistingOrder ? summary.vatAmount : undefined,
+      withholdingAmount: !needsExistingOrder ? summary.withholdingAmount : undefined,
+      netTotal: effectiveNetTotal,
+      accountMeta: selectedAccountMeta
+        ? {
+          label: selectedAccountMeta.label,
+          account_name: selectedAccountMeta.account_name,
+          account_number: selectedAccountMeta.account_number,
+        }
+        : null,
+    }),
+  );
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
@@ -414,36 +449,10 @@ export default function SendMessagePage() {
 
         <aside className="table-shell" style={{ padding: 14, position: 'sticky', top: 12 }}>
           <p style={{ fontWeight: 800, color: '#0b57b7', marginBottom: 10 }}>Flex Preview</p>
-          <div style={{ border: '1px solid #eceff4', borderRadius: 16, overflow: 'hidden', background: '#fff' }}>
-            <div style={{ background: meta.accent, color: '#fff', padding: '12px 14px' }}>
-              <p style={{ fontSize: 15, fontWeight: 800 }}>{meta.label}</p>
-              <p style={{ fontSize: 12, opacity: 0.9, marginTop: 4 }}>{previewOrderCode}</p>
-              {selectedOrder && <p style={{ fontSize: 11, opacity: 0.9, marginTop: 4 }}>Order Ref #{selectedOrder.id}</p>}
-            </div>
-            <div style={{ padding: 12, display: 'grid', gap: 8 }}>
-              <PreviewRow label="ประเภทบัญชี" value={effectiveAccountType || '-'} />
-              <PreviewRow label="จำนวนเงิน" value={money(effectiveAmount)} />
-              <PreviewRow label="อัตราแลกเปลี่ยน" value={effectiveExchangeRate ? `${effectiveExchangeRate} ${effectiveExchangeRateCurrency}` : '-'} />
-              <PreviewRow label="ยอดฐาน" value={money(effectiveBase)} />
-              {!needsExistingOrder && applyVat && <PreviewRow label="VAT 7%" value={money(summary.vatAmount)} />}
-              {!needsExistingOrder && applyWithholding && <PreviewRow label="หัก ณ ที่จ่าย 3%" value={money(summary.withholdingAmount)} />}
-              <PreviewRow label="ยอดสุทธิ" value={money(effectiveNetTotal)} emphasize />
-              <div style={{ borderTop: '1px solid #eef2f7', marginTop: 2, paddingTop: 8, fontSize: 12, color: '#64748b' }}>
-                {meta.footer}
-              </div>
-            </div>
-          </div>
+          {selectedOrder && <p className="info-note" style={{ marginTop: 0, marginBottom: 10 }}>Order Ref #{selectedOrder.id}</p>}
+          <FlexPreview json={previewFlexJson} />
         </aside>
       </div>
     </section>
-  );
-}
-
-function PreviewRow({ label, value, emphasize = false }: { label: string; value: string; emphasize?: boolean }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 13, borderBottom: '1px solid #f2f4f8', paddingBottom: 6 }}>
-      <span style={{ color: '#64748b' }}>{label}</span>
-      <span style={{ fontWeight: emphasize ? 800 : 600, color: emphasize ? '#c95b00' : '#0f172a', textAlign: 'right' }}>{value}</span>
-    </div>
   );
 }

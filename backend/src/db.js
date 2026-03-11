@@ -108,8 +108,28 @@ export async function initDb() {
         template_type TEXT PRIMARY KEY,
         display_name  TEXT NOT NULL,
         accent_color  TEXT NOT NULL DEFAULT '#1565c0',
+        header_text_color TEXT NOT NULL DEFAULT '#ffffff',
+        body_label_color TEXT NOT NULL DEFAULT '#6b7280',
+        body_text_color TEXT NOT NULL DEFAULT '#111827',
+        footer_text_color TEXT NOT NULL DEFAULT '#4b5563',
+        separator_color TEXT NOT NULL DEFAULT '#f3f4f6',
+        footer_separator_color TEXT NOT NULL DEFAULT '#e5e7eb',
         subtitle      TEXT,
         footer_note   TEXT,
+        button_confirm_label TEXT DEFAULT 'ยืนยัน',
+        button_confirm_color TEXT NOT NULL DEFAULT '#16a34a',
+        button_cancel_label TEXT DEFAULT 'ยกเลิก',
+        detail_order_code_label TEXT NOT NULL DEFAULT 'เลขคำสั่งซื้อ',
+        detail_document_type_label TEXT NOT NULL DEFAULT 'ประเภทเอกสาร',
+        detail_account_type_label TEXT NOT NULL DEFAULT 'ประเภทบัญชี',
+        detail_account_name_label TEXT NOT NULL DEFAULT 'ชื่อบัญชี',
+        detail_account_number_label TEXT NOT NULL DEFAULT 'เลขบัญชี',
+        detail_amount_label TEXT NOT NULL DEFAULT 'จำนวนเงิน',
+        detail_exchange_rate_label TEXT NOT NULL DEFAULT 'อัตราแลกเปลี่ยน',
+        detail_total_label TEXT NOT NULL DEFAULT 'ยอดฐาน',
+        detail_vat_label TEXT NOT NULL DEFAULT 'VAT 7%',
+        detail_withholding_label TEXT NOT NULL DEFAULT 'หัก ณ ที่จ่าย 3%',
+        detail_net_total_label TEXT NOT NULL DEFAULT 'ยอดสุทธิ',
         is_active     BOOLEAN NOT NULL DEFAULT TRUE,
         updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
@@ -124,6 +144,93 @@ export async function initDb() {
         sort_order  INTEGER NOT NULL DEFAULT 0,
         updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+    `);
+
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS header_text_color TEXT NOT NULL DEFAULT '#ffffff';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS body_label_color TEXT NOT NULL DEFAULT '#6b7280';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS body_text_color TEXT NOT NULL DEFAULT '#111827';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS footer_text_color TEXT NOT NULL DEFAULT '#4b5563';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS separator_color TEXT NOT NULL DEFAULT '#f3f4f6';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS footer_separator_color TEXT NOT NULL DEFAULT '#e5e7eb';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS button_confirm_label TEXT DEFAULT 'ยืนยัน';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS button_confirm_color TEXT NOT NULL DEFAULT '#16a34a';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS button_cancel_label TEXT DEFAULT 'ยกเลิก';
+    `);
+    await client.query(`
+      UPDATE template_configs
+      SET button_confirm_label = COALESCE(button_confirm_label, 'ยืนยัน'),
+          button_confirm_color = COALESCE(button_confirm_color, '#16a34a'),
+          button_cancel_label = COALESCE(button_cancel_label, 'ยกเลิก');
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS detail_order_code_label TEXT NOT NULL DEFAULT 'เลขคำสั่งซื้อ';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS detail_document_type_label TEXT NOT NULL DEFAULT 'ประเภทเอกสาร';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS detail_account_type_label TEXT NOT NULL DEFAULT 'ประเภทบัญชี';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS detail_account_name_label TEXT NOT NULL DEFAULT 'ชื่อบัญชี';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS detail_account_number_label TEXT NOT NULL DEFAULT 'เลขบัญชี';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS detail_amount_label TEXT NOT NULL DEFAULT 'จำนวนเงิน';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS detail_exchange_rate_label TEXT NOT NULL DEFAULT 'อัตราแลกเปลี่ยน';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS detail_total_label TEXT NOT NULL DEFAULT 'ยอดฐาน';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS detail_vat_label TEXT NOT NULL DEFAULT 'VAT 7%';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS detail_withholding_label TEXT NOT NULL DEFAULT 'หัก ณ ที่จ่าย 3%';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS detail_net_total_label TEXT NOT NULL DEFAULT 'ยอดสุทธิ';
     `);
 
     await client.query(`

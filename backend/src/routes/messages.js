@@ -22,9 +22,90 @@ const SendSchema = z.object({
 });
 
 const TEMPLATE_META = {
-  IMPORT_INVOICE: { title: 'ใบแจ้งหนี้นำเข้า', accent: '#1565c0', codePrefix: 'IMPORT INVOICE', footer: 'กรุณายืนยันภายใน 24 ชั่วโมง' },
-  CONFIRM: { title: 'ยืนยันคำสั่งซื้อ', accent: '#2e7d32', codePrefix: 'ORDER CONFIRMATION', footer: 'คำสั่งซื้อได้รับการยืนยันเรียบร้อยแล้ว' },
-  RECEIPT: { title: 'ใบเสร็จรับเงิน', accent: '#6a1b9a', codePrefix: 'RECEIPT', footer: 'ใบเสร็จสำหรับรายการที่ยืนยันแล้ว' },
+  IMPORT_INVOICE: {
+    title: 'ใบแจ้งหนี้นำเข้า',
+    accent: '#1565c0',
+    headerTextColor: '#ffffff',
+    bodyLabelColor: '#6b7280',
+    bodyTextColor: '#111827',
+    footerTextColor: '#4b5563',
+    separatorColor: '#f3f4f6',
+    footerSeparatorColor: '#e5e7eb',
+    codePrefix: 'IMPORT INVOICE',
+    footer: 'กรุณายืนยันภายใน 24 ชั่วโมง',
+    buttonConfirmLabel: 'ยืนยัน',
+    buttonConfirmColor: '#16a34a',
+    buttonCancelLabel: 'ยกเลิก',
+    detailLabels: {
+      orderCode: 'เลขคำสั่งซื้อ',
+      documentType: 'ประเภทเอกสาร',
+      accountType: 'ประเภทบัญชี',
+      accountName: 'ชื่อบัญชี',
+      accountNumber: 'เลขบัญชี',
+      amount: 'จำนวนเงิน',
+      exchangeRate: 'อัตราแลกเปลี่ยน',
+      total: 'ยอดฐาน',
+      vat: 'VAT 7%',
+      withholding: 'หัก ณ ที่จ่าย 3%',
+      netTotal: 'ยอดสุทธิ',
+    },
+  },
+  CONFIRM: {
+    title: 'ยืนยันคำสั่งซื้อ',
+    accent: '#2e7d32',
+    headerTextColor: '#ffffff',
+    bodyLabelColor: '#6b7280',
+    bodyTextColor: '#111827',
+    footerTextColor: '#4b5563',
+    separatorColor: '#f3f4f6',
+    footerSeparatorColor: '#e5e7eb',
+    codePrefix: 'ORDER CONFIRMATION',
+    footer: 'คำสั่งซื้อได้รับการยืนยันเรียบร้อยแล้ว',
+    buttonConfirmLabel: 'ยืนยัน',
+    buttonConfirmColor: '#16a34a',
+    buttonCancelLabel: 'ยกเลิก',
+    detailLabels: {
+      orderCode: 'เลขคำสั่งซื้อ',
+      documentType: 'ประเภทเอกสาร',
+      accountType: 'ประเภทบัญชี',
+      accountName: 'ชื่อบัญชี',
+      accountNumber: 'เลขบัญชี',
+      amount: 'จำนวนเงิน',
+      exchangeRate: 'อัตราแลกเปลี่ยน',
+      total: 'ยอดฐาน',
+      vat: 'VAT 7%',
+      withholding: 'หัก ณ ที่จ่าย 3%',
+      netTotal: 'ยอดสุทธิ',
+    },
+  },
+  RECEIPT: {
+    title: 'ใบเสร็จรับเงิน',
+    accent: '#6a1b9a',
+    headerTextColor: '#ffffff',
+    bodyLabelColor: '#6b7280',
+    bodyTextColor: '#111827',
+    footerTextColor: '#4b5563',
+    separatorColor: '#f3f4f6',
+    footerSeparatorColor: '#e5e7eb',
+    codePrefix: 'RECEIPT',
+    footer: 'ใบเสร็จสำหรับรายการที่ยืนยันแล้ว',
+    buttonConfirmLabel: 'ยืนยัน',
+    buttonConfirmColor: '#16a34a',
+    buttonCancelLabel: 'ยกเลิก',
+    detailLabels: {
+      orderCode: 'เลขคำสั่งซื้อ',
+      documentType: 'ประเภทเอกสาร',
+      accountType: 'ประเภทบัญชี',
+      accountName: 'ชื่อบัญชี',
+      accountNumber: 'เลขบัญชี',
+      amount: 'จำนวนเงิน',
+      exchangeRate: 'อัตราแลกเปลี่ยน',
+      total: 'ยอดฐาน',
+      vat: 'VAT 7%',
+      withholding: 'หัก ณ ที่จ่าย 3%',
+      netTotal: 'ยอดสุทธิ',
+    },
+  },
 };
 
 const ORDER_SOURCE_TEMPLATE = 'IMPORT_INVOICE';
@@ -62,13 +143,39 @@ function fmt(value) {
   return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} บาท`;
 }
 
+function pickColor(value, fallback) {
+  return /^#[0-9a-fA-F]{6}$/.test(value || '') ? value : fallback;
+}
+
 function buildFlexMessage(data, orderCode, orderId, cfg, accountMeta = null) {
   const baseMeta = TEMPLATE_META[data.templateType] || TEMPLATE_META.IMPORT_INVOICE;
   const meta = {
     title: cfg?.display_name || baseMeta.title,
-    accent: cfg?.accent_color || baseMeta.accent,
+    accent: pickColor(cfg?.accent_color, baseMeta.accent),
+    headerTextColor: pickColor(cfg?.header_text_color, baseMeta.headerTextColor),
+    bodyLabelColor: pickColor(cfg?.body_label_color, baseMeta.bodyLabelColor),
+    bodyTextColor: pickColor(cfg?.body_text_color, baseMeta.bodyTextColor),
+    footerTextColor: pickColor(cfg?.footer_text_color, baseMeta.footerTextColor),
+    separatorColor: pickColor(cfg?.separator_color, baseMeta.separatorColor),
+    footerSeparatorColor: pickColor(cfg?.footer_separator_color, baseMeta.footerSeparatorColor),
     codePrefix: cfg?.subtitle || baseMeta.codePrefix,
     footer: cfg?.footer_note || baseMeta.footer,
+    buttonConfirmLabel: cfg?.button_confirm_label || baseMeta.buttonConfirmLabel,
+    buttonConfirmColor: pickColor(cfg?.button_confirm_color, baseMeta.buttonConfirmColor),
+    buttonCancelLabel: cfg?.button_cancel_label || baseMeta.buttonCancelLabel,
+    detailLabels: {
+      orderCode: cfg?.detail_order_code_label || baseMeta.detailLabels.orderCode,
+      documentType: cfg?.detail_document_type_label || baseMeta.detailLabels.documentType,
+      accountType: cfg?.detail_account_type_label || baseMeta.detailLabels.accountType,
+      accountName: cfg?.detail_account_name_label || baseMeta.detailLabels.accountName,
+      accountNumber: cfg?.detail_account_number_label || baseMeta.detailLabels.accountNumber,
+      amount: cfg?.detail_amount_label || baseMeta.detailLabels.amount,
+      exchangeRate: cfg?.detail_exchange_rate_label || baseMeta.detailLabels.exchangeRate,
+      total: cfg?.detail_total_label || baseMeta.detailLabels.total,
+      vat: cfg?.detail_vat_label || baseMeta.detailLabels.vat,
+      withholding: cfg?.detail_withholding_label || baseMeta.detailLabels.withholding,
+      netTotal: cfg?.detail_net_total_label || baseMeta.detailLabels.netTotal,
+    },
   };
 
   const exchangeRateLabel = typeof data.exchangeRate === 'number'
@@ -76,19 +183,19 @@ function buildFlexMessage(data, orderCode, orderId, cfg, accountMeta = null) {
     : '-';
 
   const rows = [
-    ['เลขคำสั่งซื้อ', orderCode],
-    ['ประเภทเอกสาร', meta.codePrefix],
-    ['ประเภทบัญชี', accountMeta?.label || data.accountType || '-'],
-    ['ชื่อบัญชี', accountMeta?.account_name || '-'],
-    ['เลขบัญชี', accountMeta?.account_number || '-'],
-    ['จำนวนเงิน', fmt(data.amount)],
-    ['อัตราแลกเปลี่ยน', exchangeRateLabel],
-    ['ยอดฐาน', fmt(data.totalAmount)],
+    [meta.detailLabels.orderCode, orderCode],
+    [meta.detailLabels.documentType, meta.codePrefix],
+    [meta.detailLabels.accountType, accountMeta?.label || data.accountType || '-'],
+    [meta.detailLabels.accountName, accountMeta?.account_name || '-'],
+    [meta.detailLabels.accountNumber, accountMeta?.account_number || '-'],
+    [meta.detailLabels.amount, fmt(data.amount)],
+    [meta.detailLabels.exchangeRate, exchangeRateLabel],
+    [meta.detailLabels.total, fmt(data.totalAmount)],
   ];
 
-  if (data.applyVat) rows.push(['VAT 7%', fmt(data.vatAmount || 0)]);
-  if (data.applyWithholding) rows.push(['หัก ณ ที่จ่าย 3%', fmt(data.withholdingAmount || 0)]);
-  if (typeof data.netTotal === 'number') rows.push(['ยอดสุทธิ', fmt(data.netTotal)]);
+  if (data.applyVat) rows.push([meta.detailLabels.vat, fmt(data.vatAmount || 0)]);
+  if (data.applyWithholding) rows.push([meta.detailLabels.withholding, fmt(data.withholdingAmount || 0)]);
+  if (typeof data.netTotal === 'number') rows.push([meta.detailLabels.netTotal, fmt(data.netTotal)]);
 
   const contents = rows.flatMap(([label, value], i) => {
     const row = {
@@ -96,16 +203,16 @@ function buildFlexMessage(data, orderCode, orderId, cfg, accountMeta = null) {
       layout: 'baseline',
       spacing: 'sm',
       contents: [
-        { type: 'text', text: label, color: '#6b7280', size: 'sm', flex: 4 },
-        { type: 'text', text: value, wrap: true, color: '#111827', size: 'sm', flex: 6, align: 'end' },
+        { type: 'text', text: label, color: meta.bodyLabelColor, size: 'sm', flex: 4 },
+        { type: 'text', text: value, wrap: true, color: meta.bodyTextColor, size: 'sm', flex: 6, align: 'end' },
       ],
     };
-    return i === rows.length - 1 ? [row] : [row, { type: 'separator', margin: 'md', color: '#f3f4f6' }];
+    return i === rows.length - 1 ? [row] : [row, { type: 'separator', margin: 'md', color: meta.separatorColor }];
   });
 
   const footerContents = [
-    { type: 'separator', color: '#e5e7eb' },
-    { type: 'text', text: meta.footer, size: 'xs', color: '#4b5563', wrap: true },
+    { type: 'separator', color: meta.footerSeparatorColor },
+    { type: 'text', text: meta.footer, size: 'xs', color: meta.footerTextColor, wrap: true },
   ];
 
   if (data.templateType === 'IMPORT_INVOICE') {
@@ -120,10 +227,10 @@ function buildFlexMessage(data, orderCode, orderId, cfg, accountMeta = null) {
             type: 'button',
             style: 'primary',
             height: 'sm',
-            color: '#16a34a',
+            color: meta.buttonConfirmColor,
             action: {
               type: 'postback',
-              label: 'ยืนยัน',
+              label: meta.buttonConfirmLabel,
               data: `type=ORDER_ACTION&action=CONFIRM&orderId=${orderId}`,
               displayText: `ยืนยันคำสั่งซื้อ ${orderCode}`,
             },
@@ -134,7 +241,7 @@ function buildFlexMessage(data, orderCode, orderId, cfg, accountMeta = null) {
             height: 'sm',
             action: {
               type: 'postback',
-              label: 'ยกเลิก',
+              label: meta.buttonCancelLabel,
               data: `type=ORDER_ACTION&action=CANCEL&orderId=${orderId}`,
               displayText: `ยกเลิกคำสั่งซื้อ ${orderCode}`,
             },
@@ -161,8 +268,8 @@ function buildFlexMessage(data, orderCode, orderId, cfg, accountMeta = null) {
             backgroundColor: meta.accent,
             paddingAll: '14px',
             contents: [
-              { type: 'text', text: meta.title, color: '#ffffff', size: 'md', weight: 'bold' },
-              { type: 'text', text: orderCode, color: '#ffffff', size: 'xs', margin: 'sm' },
+              { type: 'text', text: meta.title, color: meta.headerTextColor, size: 'md', weight: 'bold' },
+              { type: 'text', text: orderCode, color: meta.headerTextColor, size: 'xs', margin: 'sm' },
             ],
           },
           {
@@ -221,7 +328,16 @@ router.post('/send', requireAuth, async (req, res) => {
     const { line_uid } = custResult.rows[0];
 
     const cfgResult = await client.query(
-      `SELECT display_name, accent_color, subtitle, footer_note, is_active
+      `SELECT display_name, accent_color, header_text_color,
+              body_label_color, body_text_color, footer_text_color,
+              separator_color, footer_separator_color,
+              subtitle, footer_note,
+              button_confirm_label, button_confirm_color, button_cancel_label,
+              detail_order_code_label, detail_document_type_label,
+              detail_account_type_label, detail_account_name_label, detail_account_number_label,
+              detail_amount_label, detail_exchange_rate_label, detail_total_label,
+              detail_vat_label, detail_withholding_label, detail_net_total_label,
+              is_active
        FROM template_configs
        WHERE template_type = $1`,
       [data.templateType],

@@ -39,6 +39,19 @@ interface FlexSeparator {
   margin?: string;
 }
 
+interface FlexButton {
+  type: 'button';
+  style?: 'primary' | 'secondary' | 'link';
+  height?: 'sm' | 'md';
+  color?: string;
+  margin?: string;
+  flex?: number;
+  action?: {
+    type?: string;
+    label?: string;
+  };
+}
+
 interface FlexBox {
   type: 'box';
   layout: 'vertical' | 'horizontal' | 'baseline';
@@ -58,7 +71,7 @@ interface FlexBox {
   alignItems?: string;
 }
 
-type FlexComponent = FlexText | FlexSeparator | FlexBox | { type: string };
+type FlexComponent = FlexText | FlexSeparator | FlexButton | FlexBox | { type: string };
 
 // ── renderer ───────────────────────────────────────────────────────────────────
 function renderComponent(comp: FlexComponent, idx: number): React.ReactNode {
@@ -99,6 +112,46 @@ function renderComponent(comp: FlexComponent, idx: number): React.ReactNode {
     );
   }
 
+  if (comp.type === 'button') {
+    const button = comp as FlexButton;
+    const style = button.style ?? 'secondary';
+    const label = button.action?.label ?? 'Button';
+    const primaryColor = button.color ?? '#1565c0';
+    const secondaryColor = '#dbe3ef';
+    const secondaryText = '#1f2937';
+
+    return (
+      <div
+        key={idx}
+        style={{
+          flex: button.flex ?? 1,
+          marginTop: sp(button.margin),
+        }}
+      >
+        <div
+          style={{
+            width: '100%',
+            minHeight: button.height === 'sm' ? 34 : 40,
+            borderRadius: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '0 12px',
+            fontSize: '13px',
+            fontWeight: 700,
+            border: style === 'secondary' ? '1px solid #cdd6e1' : '1px solid transparent',
+            background: style === 'primary' ? primaryColor : style === 'link' ? 'transparent' : secondaryColor,
+            color: style === 'primary' ? '#ffffff' : secondaryText,
+            textAlign: 'center',
+            boxSizing: 'border-box',
+          }}
+        >
+          {label}
+        </div>
+      </div>
+    );
+  }
+
   if (comp.type === 'box') {
     const box = comp as FlexBox;
     const isBaseline = box.layout === 'baseline';
@@ -121,10 +174,12 @@ function renderComponent(comp: FlexComponent, idx: number): React.ReactNode {
           justifyContent: box.justifyContent ?? undefined,
           backgroundColor: box.backgroundColor,
           borderRadius: box.cornerRadius,
-          padding: box.paddingAll ?? box.padding ?? undefined,
+          padding: box.paddingAll ?? box.padding ?? (padding === '0 0 0 0' ? undefined : padding),
           gap: sp(box.spacing),
           marginTop: sp(box.margin),
           flex: box.flex,
+          width: '100%',
+          boxSizing: 'border-box',
         }}
       >
         {box.contents.map((child, i) => renderComponent(child, i))}
@@ -148,11 +203,12 @@ function BubblePreview({ bubble }: { bubble: Bubble }) {
   return (
     <div style={{
       background: '#fff',
-      borderRadius: 12,
+      borderRadius: 18,
       overflow: 'hidden',
-      boxShadow: '0 2px 12px rgba(0,0,0,0.13)',
-      maxWidth: 340,
-      fontFamily: 'system-ui, sans-serif',
+      boxShadow: '0 10px 30px rgba(15, 23, 42, 0.12)',
+      border: '1px solid #e5e7eb',
+      maxWidth: 360,
+      fontFamily: '"LINE Seed Sans TH", "Noto Sans Thai", system-ui, sans-serif',
     }}>
       {bubble.header && (
         <div style={{ padding: '12px 16px 0' }}>
@@ -160,12 +216,12 @@ function BubblePreview({ bubble }: { bubble: Bubble }) {
         </div>
       )}
       {bubble.body && (
-        <div style={{ padding: '12px 16px' }}>
+        <div>
           {renderComponent(bubble.body, 0)}
         </div>
       )}
       {bubble.footer && (
-        <div style={{ padding: '0 16px 12px' }}>
+        <div>
           {renderComponent(bubble.footer, 0)}
         </div>
       )}

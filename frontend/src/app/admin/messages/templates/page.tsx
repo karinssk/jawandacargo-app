@@ -1,20 +1,20 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import FlexPreview from '../../customers/[id]/FlexPreview';
+import type { TemplatePreviewConfig, TemplateType } from '../../../../lib/flexMessagePreview';
+import { buildPreviewFlexMessage } from '../../../../lib/flexMessagePreview';
 
-type TemplateType = 'IMPORT_INVOICE' | 'CONFIRM' | 'RECEIPT';
-
-interface TemplateConfig {
-  template_type: TemplateType;
-  display_name: string;
-  accent_color: string;
-  subtitle: string | null;
-  footer_note: string | null;
+type TemplateConfig = TemplatePreviewConfig & {
   is_active: boolean;
   updated_at: string;
-}
+};
 
 const ORDER: TemplateType[] = ['IMPORT_INVOICE', 'CONFIRM', 'RECEIPT'];
+
+function safeColor(value: string, fallback: string) {
+  return /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback;
+}
 
 export default function TemplateConfigPage() {
   const [templates, setTemplates] = useState<TemplateConfig[]>([]);
@@ -67,7 +67,7 @@ export default function TemplateConfigPage() {
   return (
     <section>
       <h1 className="page-title">Template Config</h1>
-      <p className="page-subtitle">แต่ละ Template แยกเป็นแท็บ พร้อม Preview ทันทีขณะพิมพ์</p>
+      <p className="page-subtitle">แก้ข้อความ สี ปุ่ม และ label ใน body ของ Flex Message ได้จากหน้านี้โดยตรง</p>
 
       {loading ? (
         <p className="page-subtitle">Loading...</p>
@@ -79,12 +79,11 @@ export default function TemplateConfigPage() {
             {ORDER.map((key) => {
               const t = templates.find((x) => x.template_type === key);
               if (!t) return null;
-              const active = key === activeTab;
               return (
                 <button
                   key={key}
                   type="button"
-                  className={active ? 'btn btn-primary' : 'btn btn-soft'}
+                  className={key === activeTab ? 'btn btn-primary' : 'btn btn-soft'}
                   onClick={() => setActiveTab(key)}
                 >
                   {t.display_name || t.template_type}
@@ -93,10 +92,10 @@ export default function TemplateConfigPage() {
             })}
           </div>
 
-          <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'minmax(340px, 1fr) minmax(280px, 420px)' }}>
-            <article className="table-shell" style={{ padding: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
-                <h3 style={{ fontSize: 18, color: '#0b57b7' }}>{current.template_type}</h3>
+          <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'minmax(420px, 1fr) minmax(300px, 420px)', alignItems: 'start' }}>
+            <article className="table-shell" style={{ padding: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
+                <h3 style={{ fontSize: 18, color: '#0b57b7', margin: 0 }}>{current.template_type}</h3>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}>
                   <input
                     type="checkbox"
@@ -107,49 +106,102 @@ export default function TemplateConfigPage() {
                 </label>
               </div>
 
-              <div style={{ display: 'grid', gap: 8 }}>
-                <label>
-                  <p className="field-label">Display Name</p>
-                  <input
-                    className="input"
-                    style={{ width: '100%' }}
+              <div style={{ display: 'grid', gap: 16 }}>
+                <FieldGroup title="Header">
+                  <TextField
+                    label="Display Name"
                     value={current.display_name}
-                    onChange={(e) => updateTemplate(current.template_type, { display_name: e.target.value })}
+                    onChange={(value) => updateTemplate(current.template_type, { display_name: value })}
                   />
-                </label>
-
-                <label>
-                  <p className="field-label">Accent Color</p>
-                  <input
-                    className="input"
-                    style={{ width: '100%' }}
-                    value={current.accent_color}
-                    onChange={(e) => updateTemplate(current.template_type, { accent_color: e.target.value })}
-                  />
-                </label>
-
-                <label>
-                  <p className="field-label">Subtitle / Code Prefix</p>
-                  <input
-                    className="input"
-                    style={{ width: '100%' }}
+                  <TextField
+                    label="Subtitle / Code Prefix"
                     value={current.subtitle || ''}
-                    onChange={(e) => updateTemplate(current.template_type, { subtitle: e.target.value })}
+                    onChange={(value) => updateTemplate(current.template_type, { subtitle: value })}
                   />
-                </label>
+                  <ColorField
+                    label="Accent Color"
+                    value={current.accent_color}
+                    onChange={(value) => updateTemplate(current.template_type, { accent_color: value })}
+                  />
+                  <ColorField
+                    label="Header Text Color"
+                    value={current.header_text_color}
+                    onChange={(value) => updateTemplate(current.template_type, { header_text_color: value })}
+                  />
+                </FieldGroup>
 
-                <label>
-                  <p className="field-label">Footer Note</p>
-                  <input
-                    className="input"
-                    style={{ width: '100%' }}
-                    value={current.footer_note || ''}
-                    onChange={(e) => updateTemplate(current.template_type, { footer_note: e.target.value })}
+                <FieldGroup title="Body Colors">
+                  <ColorField
+                    label="Body Label Color"
+                    value={current.body_label_color}
+                    onChange={(value) => updateTemplate(current.template_type, { body_label_color: value })}
                   />
-                </label>
+                  <ColorField
+                    label="Body Text Color"
+                    value={current.body_text_color}
+                    onChange={(value) => updateTemplate(current.template_type, { body_text_color: value })}
+                  />
+                  <ColorField
+                    label="Separator Color"
+                    value={current.separator_color}
+                    onChange={(value) => updateTemplate(current.template_type, { separator_color: value })}
+                  />
+                </FieldGroup>
+
+                <FieldGroup title="Footer">
+                  <TextAreaField
+                    label="Footer Note"
+                    value={current.footer_note || ''}
+                    onChange={(value) => updateTemplate(current.template_type, { footer_note: value })}
+                  />
+                  <ColorField
+                    label="Footer Text Color"
+                    value={current.footer_text_color}
+                    onChange={(value) => updateTemplate(current.template_type, { footer_text_color: value })}
+                  />
+                  <ColorField
+                    label="Footer Separator Color"
+                    value={current.footer_separator_color}
+                    onChange={(value) => updateTemplate(current.template_type, { footer_separator_color: value })}
+                  />
+                </FieldGroup>
+
+                <FieldGroup title="Body Labels">
+                  <TextField label="Order Code Label" value={current.detail_order_code_label} onChange={(value) => updateTemplate(current.template_type, { detail_order_code_label: value })} />
+                  <TextField label="Document Type Label" value={current.detail_document_type_label} onChange={(value) => updateTemplate(current.template_type, { detail_document_type_label: value })} />
+                  <TextField label="Account Type Label" value={current.detail_account_type_label} onChange={(value) => updateTemplate(current.template_type, { detail_account_type_label: value })} />
+                  <TextField label="Account Name Label" value={current.detail_account_name_label} onChange={(value) => updateTemplate(current.template_type, { detail_account_name_label: value })} />
+                  <TextField label="Account Number Label" value={current.detail_account_number_label} onChange={(value) => updateTemplate(current.template_type, { detail_account_number_label: value })} />
+                  <TextField label="Amount Label" value={current.detail_amount_label} onChange={(value) => updateTemplate(current.template_type, { detail_amount_label: value })} />
+                  <TextField label="Exchange Rate Label" value={current.detail_exchange_rate_label} onChange={(value) => updateTemplate(current.template_type, { detail_exchange_rate_label: value })} />
+                  <TextField label="Total Label" value={current.detail_total_label} onChange={(value) => updateTemplate(current.template_type, { detail_total_label: value })} />
+                  <TextField label="VAT Label" value={current.detail_vat_label} onChange={(value) => updateTemplate(current.template_type, { detail_vat_label: value })} />
+                  <TextField label="Withholding Label" value={current.detail_withholding_label} onChange={(value) => updateTemplate(current.template_type, { detail_withholding_label: value })} />
+                  <TextField label="Net Total Label" value={current.detail_net_total_label} onChange={(value) => updateTemplate(current.template_type, { detail_net_total_label: value })} />
+                </FieldGroup>
+
+                {current.template_type === 'IMPORT_INVOICE' && (
+                  <FieldGroup title="Buttons">
+                    <TextField
+                      label="Confirm Button Label"
+                      value={current.button_confirm_label || ''}
+                      onChange={(value) => updateTemplate(current.template_type, { button_confirm_label: value })}
+                    />
+                    <ColorField
+                      label="Confirm Button Color"
+                      value={current.button_confirm_color}
+                      onChange={(value) => updateTemplate(current.template_type, { button_confirm_color: value })}
+                    />
+                    <TextField
+                      label="Cancel Button Label"
+                      value={current.button_cancel_label || ''}
+                      onChange={(value) => updateTemplate(current.template_type, { button_cancel_label: value })}
+                    />
+                  </FieldGroup>
+                )}
               </div>
 
-              <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <p className="info-note" style={{ marginTop: 0 }}>
                   Last update: {new Date(current.updated_at).toLocaleString('th-TH')}
                 </p>
@@ -172,42 +224,80 @@ export default function TemplateConfigPage() {
   );
 }
 
+function FieldGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section style={{ border: '1px solid #e9edf3', borderRadius: 14, padding: 14 }}>
+      <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 800, color: '#2b3550' }}>{title}</h4>
+      <div style={{ display: 'grid', gap: 10 }}>{children}</div>
+    </section>
+  );
+}
+
+function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label>
+      <p className="field-label">{label}</p>
+      <input className="input" style={{ width: '100%' }} value={value} onChange={(e) => onChange(e.target.value)} />
+    </label>
+  );
+}
+
+function TextAreaField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label>
+      <p className="field-label">{label}</p>
+      <textarea
+        className="input"
+        style={{ width: '100%', minHeight: 88, resize: 'vertical' }}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
+  );
+}
+
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  const safe = safeColor(value, '#1565c0');
+  return (
+    <label>
+      <p className="field-label">{label}</p>
+      <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 64px' }}>
+        <input className="input" style={{ width: '100%' }} value={value} onChange={(e) => onChange(e.target.value)} />
+        <input type="color" value={safe} onChange={(e) => onChange(e.target.value)} style={{ width: '100%', height: 42, border: 0, background: 'transparent' }} />
+      </div>
+    </label>
+  );
+}
+
 function TemplateFlexPreview({ template }: { template: TemplateConfig }) {
-  const accent = /^#[0-9a-fA-F]{6}$/.test(template.accent_color) ? template.accent_color : '#1565c0';
-  const subtitle = template.subtitle || template.template_type;
-  const footer = template.footer_note || 'ตัวอย่างข้อความ footer';
+  const previewJson = JSON.stringify(
+    buildPreviewFlexMessage({
+      template,
+      templateType: template.template_type,
+      orderCode: 'IMP-INV-250304-001',
+      orderId: 101,
+      accountType: 'KBANK',
+      amount: 10000,
+      exchangeRate: 4.75,
+      exchangeRateCurrency: 'CNY',
+      totalAmount: 10000,
+      applyVat: true,
+      applyWithholding: true,
+      vatAmount: 700,
+      withholdingAmount: 300,
+      netTotal: 10400,
+      accountMeta: {
+        label: 'Kbank',
+        account_name: 'Jawanda Cargo',
+        account_number: '123-456-7890',
+      },
+    }),
+  );
 
   return (
     <aside className="table-shell" style={{ padding: 14, position: 'sticky', top: 12, alignSelf: 'start' }}>
       <p style={{ fontWeight: 800, color: '#0b57b7', marginBottom: 10 }}>Live Preview</p>
-      <div style={{ width: '100%', border: '1px solid #e9edf3', borderRadius: 16, overflow: 'hidden', background: '#fff' }}>
-        <div style={{ background: accent, color: '#fff', padding: '12px 14px' }}>
-          <p style={{ fontSize: 15, fontWeight: 800 }}>{template.display_name}</p>
-          <p style={{ fontSize: 12, opacity: 0.92, marginTop: 4 }}>{subtitle}</p>
-        </div>
-
-        <div style={{ padding: 12, display: 'grid', gap: 7 }}>
-          <PreviewRow label="เลขคำสั่งซื้อ" value="IMP-INV-250304-001" />
-          <PreviewRow label="ประเภทบัญชี" value="Kbank" />
-          <PreviewRow label="ยอดฐาน" value="10,000 บาท" />
-          <PreviewRow label="VAT 7%" value="700 บาท" />
-          <PreviewRow label="หัก ณ ที่จ่าย 3%" value="300 บาท" />
-          <PreviewRow label="ยอดสุทธิ" value="10,400 บาท" emphasize />
-
-          <div style={{ borderTop: '1px solid #eef2f7', marginTop: 2, paddingTop: 8, fontSize: 12, color: '#64748b' }}>
-            {footer}
-          </div>
-        </div>
-      </div>
+      <FlexPreview json={previewJson} />
     </aside>
-  );
-}
-
-function PreviewRow({ label, value, emphasize = false }: { label: string; value: string; emphasize?: boolean }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 13, borderBottom: '1px solid #f2f4f8', paddingBottom: 6 }}>
-      <span style={{ color: '#64748b' }}>{label}</span>
-      <span style={{ fontWeight: emphasize ? 800 : 600, color: emphasize ? '#c95b00' : '#0f172a', textAlign: 'right' }}>{value}</span>
-    </div>
   );
 }
