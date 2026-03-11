@@ -91,6 +91,9 @@ export default function SendMessagePage() {
   const [applyWithholding, setApplyWithholding] = useState(false);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; orderId?: number; orderCode?: string; lineError?: string } | null>(null);
+  const [editingCode, setEditingCode] = useState(false);
+  const [codeInput, setCodeInput] = useState('');
+  const [savingCode, setSavingCode] = useState(false);
 
   useEffect(() => {
     fetch('/api/account-types', { credentials: 'include' })
@@ -242,6 +245,25 @@ export default function SendMessagePage() {
     }),
   );
 
+  async function handleSaveCode() {
+    if (!selectedCustomer || !codeInput.trim()) return;
+    setSavingCode(true);
+    try {
+      const res = await fetch(`/api/customers/${selectedCustomer.id}/code`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ customer_code: codeInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || 'Failed to update code'); return; }
+      setSelectedCustomer((prev) => prev ? { ...prev, customer_code: data.customer_code } : prev);
+      setEditingCode(false);
+    } finally {
+      setSavingCode(false);
+    }
+  }
+
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedCustomer) return;
@@ -331,9 +353,52 @@ export default function SendMessagePage() {
           <form onSubmit={handleSend}>
             <label className="field-label">Customer *</label>
             {selectedCustomer ? (
-              <div className="input" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#ecf9f2', marginBottom: 10 }}>
-                <span>{selectedCustomer.customer_code} - {selectedCustomer.display_name}</span>
-                <button type="button" onClick={() => { setSelectedCustomer(null); setSearch(''); }} style={{ background: 'transparent', border: 0, cursor: 'pointer' }}>x</button>
+              <div style={{ marginBottom: 10 }}>
+                <div className="input" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#ecf9f2' }}>
+                  <span><strong>{selectedCustomer.customer_code}</strong> - {selectedCustomer.display_name}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => { setCodeInput(selectedCustomer.customer_code); setEditingCode(true); }}
+                      title="แก้ไขรหัสลูกค้า"
+                      style={{ background: 'transparent', border: '1px solid #aacfb5', borderRadius: 5, padding: '2px 7px', cursor: 'pointer', fontSize: 11, color: '#2e7d32' }}
+                    >
+                      ✎ แก้ไขรหัส
+                    </button>
+                    <button type="button" onClick={() => { setSelectedCustomer(null); setSearch(''); setEditingCode(false); }} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontSize: 14, color: '#546e7a' }}>✕</button>
+                  </div>
+                </div>
+                {editingCode && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                    <input
+                      className="input"
+                      style={{ flex: 1, padding: '4px 8px', fontSize: 13 }}
+                      value={codeInput}
+                      onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveCode();
+                        if (e.key === 'Escape') setEditingCode(false);
+                      }}
+                      placeholder="เช่น JWD/000001"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveCode}
+                      disabled={savingCode}
+                      style={{ background: '#0b57b7', color: '#fff', border: 0, borderRadius: 6, padding: '4px 12px', fontSize: 13, cursor: 'pointer' }}
+                    >
+                      {savingCode ? '...' : 'บันทึก'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingCode(false)}
+                      style={{ background: '#f1f3f7', border: 0, borderRadius: 6, padding: '4px 10px', fontSize: 13, cursor: 'pointer' }}
+                    >
+                      ยกเลิก
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div style={{ position: 'relative' }}>
@@ -348,14 +413,26 @@ export default function SendMessagePage() {
                 {suggestions.length > 0 && (
                   <div className="table-shell" style={{ position: 'absolute', top: 44, zIndex: 20, width: '100%', background: '#fff' }}>
                     {suggestions.map((c) => (
-                      <button
+                      <div
                         key={c.id}
-                        type="button"
-                        style={{ width: '100%', textAlign: 'left', border: 0, background: '#fff', padding: 10, borderBottom: '1px solid #f1f3f7', cursor: 'pointer' }}
-                        onClick={() => { setSelectedCustomer(c); setSuggestions([]); }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f3f7' }}
                       >
-                        <strong>{c.customer_code}</strong> - {c.display_name}
-                      </button>
+                        <button
+                          type="button"
+                          style={{ flex: 1, textAlign: 'left', border: 0, background: '#fff', padding: 10, cursor: 'pointer' }}
+                          onClick={() => { setSelectedCustomer(c); setSuggestions([]); setEditingCode(false); }}
+                        >
+                          <strong>{c.customer_code}</strong> - {c.display_name}
+                        </button>
+                        <button
+                          type="button"
+                          title="แก้ไขรหัสลูกค้า"
+                          style={{ background: 'transparent', border: '1px solid #dde2ea', borderRadius: 5, padding: '3px 8px', margin: '0 8px', cursor: 'pointer', fontSize: 11, color: '#546e7a', whiteSpace: 'nowrap' }}
+                          onClick={() => { setSelectedCustomer(c); setSuggestions([]); setCodeInput(c.customer_code); setEditingCode(true); }}
+                        >
+                          ✎ แก้ไขรหัส
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}

@@ -134,4 +134,30 @@ router.get('/:id', requireAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/customers/:id/code
+router.patch('/:id/code', requireAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Invalid id' });
+
+  const { customer_code } = req.body;
+  if (!customer_code || typeof customer_code !== 'string') {
+    return res.status(400).json({ error: 'customer_code is required' });
+  }
+  const code = customer_code.trim().toUpperCase();
+  if (!code) return res.status(400).json({ error: 'customer_code cannot be empty' });
+
+  try {
+    const result = await pool.query(
+      'UPDATE customers SET customer_code = $1 WHERE id = $2 RETURNING id, customer_code',
+      [code, id],
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'Customer code already exists' });
+    console.error('[customers/:id/code]', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

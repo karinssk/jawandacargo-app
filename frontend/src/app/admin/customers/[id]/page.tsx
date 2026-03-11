@@ -118,6 +118,9 @@ export default function CustomerDetailPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [messages, setMessages] = useState<MessageLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingCode, setEditingCode] = useState(false);
+  const [codeInput, setCodeInput] = useState('');
+  const [savingCode, setSavingCode] = useState(false);
 
   useEffect(() => {
     fetch(`/api/customers/${id}`, { credentials: 'include' })
@@ -131,6 +134,25 @@ export default function CustomerDetailPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [id]);
+
+  async function handleSaveCode() {
+    if (!customer || !codeInput.trim()) return;
+    setSavingCode(true);
+    try {
+      const res = await fetch(`/api/customers/${customer.id}/code`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ customer_code: codeInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || 'Failed to update code'); return; }
+      setCustomer((prev) => prev ? { ...prev, customer_code: data.customer_code } : prev);
+      setEditingCode(false);
+    } finally {
+      setSavingCode(false);
+    }
+  }
 
   if (loading) return <p className="page-subtitle">Loading...</p>;
   if (!customer) return <p className="page-subtitle">ไม่พบข้อมูลลูกค้า</p>;
@@ -168,9 +190,51 @@ export default function CustomerDetailPage() {
               {customer.is_blocked ? 'Blocked' : 'Active'}
             </span>
           </div>
-          <p className="page-subtitle" style={{ margin: '4px 0 0' }}>
-            {customer.customer_code} · LINE UID: {customer.line_uid || '-'}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 0', flexWrap: 'wrap' }}>
+            {editingCode ? (
+              <>
+                <input
+                  className="input"
+                  style={{ width: 140, padding: '3px 8px', fontSize: 13 }}
+                  value={codeInput}
+                  onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveCode();
+                    if (e.key === 'Escape') setEditingCode(false);
+                  }}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveCode}
+                  disabled={savingCode}
+                  style={{ background: '#0b57b7', color: '#fff', border: 0, borderRadius: 6, padding: '3px 10px', fontSize: 12, cursor: 'pointer' }}
+                >
+                  {savingCode ? '...' : 'บันทึก'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingCode(false)}
+                  style={{ background: '#f1f3f7', border: 0, borderRadius: 6, padding: '3px 10px', fontSize: 12, cursor: 'pointer' }}
+                >
+                  ยกเลิก
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="page-subtitle" style={{ margin: 0, fontFamily: 'monospace' }}>{customer.customer_code}</span>
+                <button
+                  type="button"
+                  onClick={() => { setCodeInput(customer.customer_code); setEditingCode(true); }}
+                  title="แก้ไขรหัสลูกค้า"
+                  style={{ background: 'transparent', border: '1px solid #dde2ea', borderRadius: 5, padding: '2px 7px', cursor: 'pointer', fontSize: 12, color: '#546e7a' }}
+                >
+                  ✎ แก้ไขรหัส
+                </button>
+              </>
+            )}
+            <span className="page-subtitle" style={{ margin: 0 }}>· LINE UID: {customer.line_uid || '-'}</span>
+          </div>
           <p className="page-subtitle" style={{ margin: '2px 0 0', fontSize: 12 }}>
             สมัครเมื่อ {fmt(customer.created_at)}
           </p>
