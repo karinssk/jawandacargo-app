@@ -13,6 +13,8 @@ const SendSchema = z.object({
   bodyIntroText: z.string().trim().max(2000).optional(),
   accountNote: z.string().trim().max(1000).optional(),
   footerNote: z.string().trim().max(1000).optional(),
+  receiptButtonLabel: z.string().trim().max(200).optional(),
+  receiptButtonUrl: z.string().trim().max(2000).optional(),
   amount: z.number().positive().optional(),
   exchangeRate: z.number().positive().optional(),
   exchangeRateCurrency: z.enum(['USD', 'CNY', 'THB']).optional(),
@@ -95,6 +97,8 @@ const TEMPLATE_META = {
     buttonConfirmLabel: 'ยืนยัน',
     buttonConfirmColor: '#16a34a',
     buttonCancelLabel: 'ยกเลิก',
+    buttonReceiptLabel: 'คลิกที่นี้',
+    buttonReceiptUrl: null,
     detailLabels: {
       orderCode: 'เลขคำสั่งซื้อ',
       documentType: 'ประเภทเอกสาร',
@@ -184,6 +188,8 @@ function buildFlexMessage(data, orderCode, orderId, cfg, accountMeta = null) {
     buttonConfirmLabel: cfg?.button_confirm_label || baseMeta.buttonConfirmLabel,
     buttonConfirmColor: pickColor(cfg?.button_confirm_color, baseMeta.buttonConfirmColor),
     buttonCancelLabel: cfg?.button_cancel_label || baseMeta.buttonCancelLabel,
+    buttonReceiptLabel: data.receiptButtonLabel || cfg?.button_receipt_label || baseMeta.buttonReceiptLabel || 'คลิกที่นี้',
+    buttonReceiptUrl: data.receiptButtonUrl || cfg?.button_receipt_url || baseMeta.buttonReceiptUrl || null,
     detailLabels: {
       orderCode: cfg?.detail_order_code_label || baseMeta.detailLabels.orderCode,
       documentType: cfg?.detail_document_type_label || baseMeta.detailLabels.documentType,
@@ -292,6 +298,21 @@ function buildFlexMessage(data, orderCode, orderId, cfg, accountMeta = null) {
     );
   }
 
+  if (data.templateType === 'RECEIPT' && meta.buttonReceiptUrl) {
+    footerContents.push({
+      type: 'button',
+      style: 'primary',
+      height: 'sm',
+      margin: 'md',
+      color: meta.accent,
+      action: {
+        type: 'uri',
+        label: meta.buttonReceiptLabel,
+        uri: meta.buttonReceiptUrl,
+      },
+    });
+  }
+
   return {
     type: 'flex',
     altText: `${meta.title} ${orderCode}`,
@@ -397,6 +418,7 @@ router.post('/send', requireAuth, async (req, res) => {
               separator_color, footer_separator_color,
               subtitle, footer_note,
               button_confirm_label, button_confirm_color, button_cancel_label,
+              button_receipt_label, button_receipt_url,
               detail_order_code_label, detail_document_type_label,
               detail_account_type_label, detail_account_name_label, detail_account_number_label,
               detail_amount_label, detail_exchange_rate_label, detail_total_label,

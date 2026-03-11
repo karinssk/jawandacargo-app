@@ -17,6 +17,8 @@ export interface TemplatePreviewConfig {
   button_confirm_label: string | null;
   button_confirm_color: string;
   button_cancel_label: string | null;
+  button_receipt_label: string | null;
+  button_receipt_url: string | null;
   detail_order_code_label: string;
   detail_document_type_label: string;
   detail_account_type_label: string;
@@ -48,6 +50,8 @@ export const DEFAULT_TEMPLATE_CONFIGS: Record<TemplateType, TemplatePreviewConfi
     button_confirm_label: 'ยืนยัน',
     button_confirm_color: '#16a34a',
     button_cancel_label: 'ยกเลิก',
+    button_receipt_label: 'คลิกที่นี้',
+    button_receipt_url: null,
     detail_order_code_label: 'เลขคำสั่งซื้อ',
     detail_document_type_label: 'ประเภทเอกสาร',
     detail_account_type_label: 'ประเภทบัญชี',
@@ -77,6 +81,8 @@ export const DEFAULT_TEMPLATE_CONFIGS: Record<TemplateType, TemplatePreviewConfi
     button_confirm_label: 'ยืนยัน',
     button_confirm_color: '#16a34a',
     button_cancel_label: 'ยกเลิก',
+    button_receipt_label: 'คลิกที่นี้',
+    button_receipt_url: null,
     detail_order_code_label: 'เลขคำสั่งซื้อ',
     detail_document_type_label: 'ประเภทเอกสาร',
     detail_account_type_label: 'ประเภทบัญชี',
@@ -106,6 +112,8 @@ export const DEFAULT_TEMPLATE_CONFIGS: Record<TemplateType, TemplatePreviewConfi
     button_confirm_label: 'ยืนยัน',
     button_confirm_color: '#16a34a',
     button_cancel_label: 'ยกเลิก',
+    button_receipt_label: 'คลิกที่นี้',
+    button_receipt_url: null,
     detail_order_code_label: 'เลขคำสั่งซื้อ',
     detail_document_type_label: 'ประเภทเอกสาร',
     detail_account_type_label: 'ประเภทบัญชี',
@@ -135,6 +143,8 @@ interface PreviewInput {
   bodyIntroText?: string;
   accountNote?: string | null;
   footerNote?: string;
+  receiptButtonLabel?: string | null;
+  receiptButtonUrl?: string | null;
   accountType?: string | null;
   amount?: number;
   exchangeRate?: number;
@@ -177,6 +187,8 @@ export function buildPreviewFlexMessage(input: PreviewInput) {
     bodyIntroText,
     accountNote,
     footerNote,
+    receiptButtonLabel,
+    receiptButtonUrl,
     accountType,
     amount,
     exchangeRate,
@@ -258,6 +270,22 @@ export function buildPreviewFlexMessage(input: PreviewInput) {
       wrap: true,
     },
   ];
+
+  const effectiveReceiptUrl = receiptButtonUrl || template.button_receipt_url;
+  if (templateType === 'RECEIPT' && effectiveReceiptUrl) {
+    footerContents.push({
+      type: 'button',
+      style: 'primary',
+      height: 'sm',
+      margin: 'md',
+      color: pickColor(template.accent_color, '#6a1b9a'),
+      action: {
+        type: 'uri',
+        label: receiptButtonLabel || template.button_receipt_label || 'คลิกที่นี้',
+        uri: effectiveReceiptUrl,
+      },
+    });
+  }
 
   if (templateType === 'CONFIRM') {
     footerContents.push({

@@ -89,6 +89,7 @@ export default function SendMessagePage() {
   const [amount, setAmount] = useState('');
   const [exchangeRate, setExchangeRate] = useState('');
   const [exchangeRateCurrency, setExchangeRateCurrency] = useState<'USD' | 'CNY' | 'THB'>('CNY');
+  const [receiptButtonUrl, setReceiptButtonUrl] = useState('');
   const [applyVat, setApplyVat] = useState(false);
   const [applyWithholding, setApplyWithholding] = useState(false);
   const [sending, setSending] = useState(false);
@@ -178,13 +179,16 @@ export default function SendMessagePage() {
     if (!accountType && selectedOrder.account_type) {
       setAccountType(selectedOrder.account_type);
     }
+    if (!amount && selectedOrder.amount != null) {
+      setAmount(String(selectedOrder.amount));
+    }
     if (!exchangeRate && selectedOrder.exchange_rate != null) {
       setExchangeRate(String(selectedOrder.exchange_rate));
     }
     if (selectedOrder.exchange_rate_currency) {
       setExchangeRateCurrency(selectedOrder.exchange_rate_currency);
     }
-  }, [selectedOrder, accountType, exchangeRate]);
+  }, [selectedOrder, accountType, amount, exchangeRate]);
 
   const autoBaseAmount = useMemo(() => toNum(amount) * toNum(exchangeRate), [amount, exchangeRate]);
 
@@ -225,6 +229,8 @@ export default function SendMessagePage() {
       bodyIntroText,
       accountNote: selectedAccountMeta?.account_note || undefined,
       footerNote,
+      receiptButtonUrl: templateType === 'RECEIPT' ? (receiptButtonUrl || selectedTemplateConfig.button_receipt_url || undefined) : undefined,
+      receiptButtonLabel: selectedTemplateConfig.button_receipt_label || undefined,
       accountType: accountType || undefined,
       amount: toNum(amount),
       exchangeRate: toNum(exchangeRate) || undefined,
@@ -335,6 +341,7 @@ export default function SendMessagePage() {
           bodyIntroText: bodyIntroText || undefined,
           accountNote: selectedAccountMeta?.account_note || undefined,
           footerNote: footerNote || undefined,
+          receiptButtonUrl: templateType === 'RECEIPT' ? (receiptButtonUrl || undefined) : undefined,
           amount: amount ? Number(amount) : undefined,
           exchangeRate: exchangeRate ? Number(exchangeRate) : undefined,
           exchangeRateCurrency,
@@ -445,6 +452,20 @@ export default function SendMessagePage() {
               value={bodyIntroText}
               onChange={(e) => setBodyIntroText(e.target.value)}
             />
+
+            {templateType === 'RECEIPT' && (
+              <>
+                <label className="field-label">Receipt Button URL</label>
+                <input
+                  className="input"
+                  style={{ width: '100%' }}
+                  type="url"
+                  value={receiptButtonUrl}
+                  onChange={(e) => setReceiptButtonUrl(e.target.value)}
+                  placeholder={selectedTemplateConfig.button_receipt_url || 'https://... (ว่าง = ใช้ค่า default จาก config)'}
+                />
+              </>
+            )}
 
             <label className="field-label">Custom Footer</label>
             {selectedAccountMeta?.account_note && (

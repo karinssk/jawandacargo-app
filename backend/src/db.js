@@ -390,6 +390,15 @@ export async function initDb() {
     `);
 
     await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS button_receipt_label TEXT DEFAULT 'คลิกที่นี้';
+    `);
+    await client.query(`
+      ALTER TABLE template_configs
+      ADD COLUMN IF NOT EXISTS button_receipt_url TEXT DEFAULT NULL;
+    `);
+
+    await client.query(`
       INSERT INTO template_configs (template_type, display_name, accent_color, subtitle, footer_note, is_active)
       VALUES
         ('IMPORT_INVOICE', 'ใบแจ้งหนี้นำเข้า', '#1565c0', 'IMPORT INVOICE', 'กรุณาชำระค่าใช้จ่ายนำเข้าตามบิลนี้', TRUE),

@@ -14,14 +14,13 @@ interface Order {
   amount: number;
   total_amount: number;
   status: 'PENDING' | 'CONFIRMED' | 'UNCONFIRMED';
-  expires_at: string;
   created_at: string;
 }
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pending',
   CONFIRMED: 'Confirmed',
-  UNCONFIRMED: 'Expired/Cancelled',
+  UNCONFIRMED: 'Cancelled',
 };
 
 const STATUS_BADGES: Record<string, string> = {
@@ -118,7 +117,7 @@ export default function OrdersPage() {
           <option value="">All status</option>
           <option value="PENDING">Pending</option>
           <option value="CONFIRMED">Confirmed</option>
-          <option value="UNCONFIRMED">Expired/Cancelled</option>
+          <option value="UNCONFIRMED">Cancelled</option>
         </select>
         <button onClick={() => { setPage(1); load(1); }} className="btn btn-primary" type="button">Search</button>
         <button onClick={() => { setCustomerCode(''); setDate(''); setStatus(''); setPage(1); load(1); }} className="btn btn-soft" type="button">Reset</button>
@@ -131,7 +130,7 @@ export default function OrdersPage() {
           <table className="table">
             <thead>
               <tr>
-                {['Order', 'Customer', 'Name', 'Type', 'Amount', 'Total', 'Status', 'Stage', 'Expire At', 'Actions', 'Created'].map((h) => (
+                {['Order', 'Customer', 'Name', 'Type', 'Amount', 'Total', 'Status', 'Stage', 'Actions', 'Created'].map((h) => (
                   <th key={h}>{h}</th>
                 ))}
               </tr>
@@ -149,7 +148,6 @@ export default function OrdersPage() {
                     <span className={`badge ${STATUS_BADGES[o.status]}`}>{STATUS_LABELS[o.status]}</span>
                   </td>
                   <td>{o.stage}</td>
-                  <td>{o.expires_at ? new Date(o.expires_at).toLocaleString('th-TH') : '-'}</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     {o.status === 'PENDING' ? (
                       <div style={{ display: 'flex', gap: 6 }}>
@@ -179,7 +177,7 @@ export default function OrdersPage() {
               ))}
               {orders.length === 0 && (
                 <tr>
-                  <td colSpan={11} style={{ textAlign: 'center', color: '#8a94a4' }}>No data</td>
+                  <td colSpan={10} style={{ textAlign: 'center', color: '#8a94a4' }}>No data</td>
                 </tr>
               )}
             </tbody>

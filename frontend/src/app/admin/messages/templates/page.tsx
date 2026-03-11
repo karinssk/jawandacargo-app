@@ -209,6 +209,21 @@ export default function TemplateConfigPage() {
                     />
                   </FieldGroup>
                 )}
+
+                {current.template_type === 'RECEIPT' && (
+                  <FieldGroup title="Button (URL)">
+                    <TextField
+                      label="Button Label"
+                      value={current.button_receipt_label || ''}
+                      onChange={(value) => updateTemplate(current.template_type, { button_receipt_label: value })}
+                    />
+                    <TextField
+                      label="Button URL (ว่าง = ไม่แสดงปุ่ม)"
+                      value={current.button_receipt_url || ''}
+                      onChange={(value) => updateTemplate(current.template_type, { button_receipt_url: value || null })}
+                    />
+                  </FieldGroup>
+                )}
               </div>
 
               <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>

@@ -25,7 +25,6 @@ interface Order {
   delivery_tracking_no: string | null;
   delivery_note: string | null;
   delivery_updated_at: string | null;
-  expires_at: string | null;
   confirmed_at: string | null;
   created_at: string;
   customer_id: number;
@@ -62,7 +61,7 @@ interface RelatedDocument {
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'รอยืนยัน',
   CONFIRMED: 'ยืนยันแล้ว',
-  UNCONFIRMED: 'ยกเลิก / หมดอายุ',
+  UNCONFIRMED: 'ยกเลิก',
 };
 const STATUS_BADGES: Record<string, string> = {
   PENDING: 'badge-warning',
@@ -86,8 +85,6 @@ const STAGE_LABELS: Record<string, string> = {
   DISPATCHED: 'ส่งออกจากโกดังแล้ว',
   COMPLETED: 'งานเสร็จสมบูรณ์',
 };
-const STAGE_OPTIONS = Object.entries(STAGE_LABELS);
-
 function fmt(iso: string) {
   return new Date(iso).toLocaleString('th-TH', {
     day: '2-digit', month: 'short', year: 'numeric',
@@ -112,16 +109,6 @@ export default function OrderDetailPage() {
   const [documents, setDocuments] = useState<RelatedDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
-  const [savingLifecycle, setSavingLifecycle] = useState(false);
-  const [lifecycle, setLifecycle] = useState({
-    stage: 'WAITING_ORDER_CONFIRMATION',
-    sellerTrackingNo: '',
-    thaiWarehouseReceivedAt: '',
-    deliveryMethod: '',
-    deliveryProvider: '',
-    deliveryTrackingNo: '',
-    deliveryNote: '',
-  });
 
   function load() {
     fetch(`/api/orders/${id}`, { credentials: 'include' })
@@ -136,19 +123,6 @@ export default function OrderDetailPage() {
   }
 
   useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!order) return;
-    setLifecycle({
-      stage: order.stage || 'WAITING_ORDER_CONFIRMATION',
-      sellerTrackingNo: order.seller_tracking_no || '',
-      thaiWarehouseReceivedAt: order.thai_warehouse_received_at ? order.thai_warehouse_received_at.slice(0, 16) : '',
-      deliveryMethod: order.delivery_method || '',
-      deliveryProvider: order.delivery_provider || '',
-      deliveryTrackingNo: order.delivery_tracking_no || '',
-      deliveryNote: order.delivery_note || '',
-    });
-  }, [order]);
 
   async function updateOrder(action: 'confirm' | 'cancel') {
     if (!order) return;
@@ -183,28 +157,6 @@ export default function OrderDetailPage() {
       }
     } finally {
       setActing(false);
-    }
-  }
-
-  async function saveLifecycle() {
-    if (!order) return;
-    setSavingLifecycle(true);
-    try {
-      const res = await fetch(`/api/orders/${order.id}/lifecycle`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(lifecycle),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        Swal.fire({ icon: 'error', title: 'อัปเดตไม่สำเร็จ', text: data.error || 'Update failed' });
-        return;
-      }
-      await Swal.fire({ icon: 'success', title: 'บันทึก workflow แล้ว', timer: 1500, showConfirmButton: false });
-      load();
-    } finally {
-      setSavingLifecycle(false);
     }
   }
 
@@ -249,7 +201,6 @@ export default function OrderDetailPage() {
             <Row label="ผู้ให้บริการขนส่ง" value={order.delivery_provider} />
             <Row label="เลขติดตามขนส่งไทย" value={order.delivery_tracking_no} />
             <Row label="สร้างเมื่อ" value={fmt(order.created_at)} />
-            <Row label="หมดอายุ" value={order.expires_at ? fmt(order.expires_at) : null} />
             {order.confirmed_at && <Row label="ยืนยันเมื่อ" value={fmt(order.confirmed_at)} />}
 
             {order.status === 'PENDING' && (
@@ -274,94 +225,6 @@ export default function OrderDetailPage() {
                 </button>
               </div>
             )}
-          </div>
-
-          <div style={{ background: '#fff', borderRadius: 16, padding: '20px 24px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: '#2b3550', marginBottom: 14 }}>Workflow / Logistics</h2>
-            <div style={{ display: 'grid', gap: 12 }}>
-              <label>
-                <p className="field-label">สถานะงาน</p>
-                <select
-                  className="select"
-                  style={{ width: '100%' }}
-                  value={lifecycle.stage}
-                  onChange={(e) => setLifecycle((prev) => ({ ...prev, stage: e.target.value }))}
-                >
-                  {STAGE_OPTIONS.map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                <p className="field-label">เลขพัสดุจากผู้ขาย</p>
-                <input
-                  className="input"
-                  style={{ width: '100%' }}
-                  value={lifecycle.sellerTrackingNo}
-                  onChange={(e) => setLifecycle((prev) => ({ ...prev, sellerTrackingNo: e.target.value }))}
-                />
-              </label>
-
-              <label>
-                <p className="field-label">วันที่เข้าโกดังไทย</p>
-                <input
-                  className="input"
-                  style={{ width: '100%' }}
-                  type="datetime-local"
-                  value={lifecycle.thaiWarehouseReceivedAt}
-                  onChange={(e) => setLifecycle((prev) => ({ ...prev, thaiWarehouseReceivedAt: e.target.value }))}
-                />
-              </label>
-
-              <label>
-                <p className="field-label">วิธีรับสินค้า</p>
-                <select
-                  className="select"
-                  style={{ width: '100%' }}
-                  value={lifecycle.deliveryMethod}
-                  onChange={(e) => setLifecycle((prev) => ({ ...prev, deliveryMethod: e.target.value }))}
-                >
-                  <option value="">-- ยังไม่ระบุ --</option>
-                  <option value="DELIVERY">จัดส่งปลายทาง</option>
-                  <option value="PICKUP">ลูกค้ารับเองหน้าโกดัง</option>
-                </select>
-              </label>
-
-              <label>
-                <p className="field-label">ผู้ให้บริการขนส่ง</p>
-                <input
-                  className="input"
-                  style={{ width: '100%' }}
-                  value={lifecycle.deliveryProvider}
-                  onChange={(e) => setLifecycle((prev) => ({ ...prev, deliveryProvider: e.target.value }))}
-                />
-              </label>
-
-              <label>
-                <p className="field-label">เลขติดตามขนส่งไทย</p>
-                <input
-                  className="input"
-                  style={{ width: '100%' }}
-                  value={lifecycle.deliveryTrackingNo}
-                  onChange={(e) => setLifecycle((prev) => ({ ...prev, deliveryTrackingNo: e.target.value }))}
-                />
-              </label>
-
-              <label>
-                <p className="field-label">หมายเหตุ</p>
-                <textarea
-                  className="input"
-                  style={{ width: '100%', minHeight: 88, resize: 'vertical' }}
-                  value={lifecycle.deliveryNote}
-                  onChange={(e) => setLifecycle((prev) => ({ ...prev, deliveryNote: e.target.value }))}
-                />
-              </label>
-
-              <button type="button" className="btn btn-primary" disabled={savingLifecycle} onClick={saveLifecycle}>
-                {savingLifecycle ? 'Saving...' : 'บันทึก Workflow'}
-              </button>
-            </div>
           </div>
 
           {/* Customer card */}
