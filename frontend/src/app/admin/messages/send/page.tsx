@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 
 interface Customer {
@@ -19,11 +19,25 @@ interface AccountTypeOption {
   sort_order: number;
 }
 
+interface OrderOption {
+  id: number;
+  order_code: string;
+  template_type: string;
+  account_type: string | null;
+  amount: number | null;
+  exchange_rate: number | null;
+  exchange_rate_currency: 'USD' | 'CNY' | 'THB' | null;
+  total_amount: number | null;
+  status: 'PENDING' | 'CONFIRMED' | 'UNCONFIRMED';
+  expires_at: string | null;
+  confirmed_at: string | null;
+  created_at: string;
+}
+
 const TEMPLATE_TYPES = [
-  { value: 'INVOICE', label: 'แจ้งค่าส่ง (Shipping Bill)', accent: '#f57c00' },
-  { value: 'IMPORT_INVOICE', label: 'ใบแจ้งหนี้นำเข้า (Import Invoice)', accent: '#1565c0' },
-  { value: 'CONFIRM', label: 'ยืนยันคำสั่งซื้อ', accent: '#2e7d32' },
-  { value: 'RECEIPT', label: 'ใบเสร็จ', accent: '#6a1b9a' },
+  { value: 'IMPORT_INVOICE', label: 'ใบแจ้งหนี้นำเข้า (Import Invoice)', accent: '#1565c0', footer: 'กรุณายืนยันภายใน 24 ชั่วโมง' },
+  { value: 'CONFIRM', label: 'ยืนยันคำสั่งซื้อ', accent: '#2e7d32', footer: 'คำสั่งซื้อได้รับการยืนยันเรียบร้อยแล้ว' },
+  { value: 'RECEIPT', label: 'ใบเสร็จ', accent: '#6a1b9a', footer: 'ใบเสร็จสำหรับรายการที่ยืนยันแล้ว' },
 ] as const;
 
 type TemplateType = typeof TEMPLATE_TYPES[number]['value'];
@@ -49,13 +63,22 @@ function extractApiError(payload: unknown): string {
   return 'Request failed';
 }
 
+function statusLabel(status: OrderOption['status']) {
+  if (status === 'CONFIRMED') return 'ยืนยันแล้ว';
+  if (status === 'UNCONFIRMED') return 'ยกเลิก / หมดอายุ';
+  return 'รอยืนยัน';
+}
+
 export default function SendMessagePage() {
   const [search, setSearch] = useState('');
   const [suggestions, setSuggestions] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [templateType, setTemplateType] = useState<TemplateType>('INVOICE');
+  const [templateType, setTemplateType] = useState<TemplateType>('IMPORT_INVOICE');
   const [accountType, setAccountType] = useState('');
   const [accountTypes, setAccountTypes] = useState<AccountTypeOption[]>([]);
+  const [customerOrders, setCustomerOrders] = useState<OrderOption[]>([]);
+  const [selectedOrderId, setSelectedOrderId] = useState('');
+  const [loadingOrders, setLoadingOrders] = useState(false);
   const [amount, setAmount] = useState('');
   const [exchangeRate, setExchangeRate] = useState('');
   const [exchangeRateCurrency, setExchangeRateCurrency] = useState<'USD' | 'CNY' | 'THB'>('CNY');
@@ -97,6 +120,45 @@ export default function SendMessagePage() {
     return () => clearTimeout(t);
   }, [search, selectedCustomer]);
 
+  useEffect(() => {
+    if (!selectedCustomer) {
+      setCustomerOrders([]);
+      setSelectedOrderId('');
+      return;
+    }
+
+    setLoadingOrders(true);
+    fetch(`/api/customers/${selectedCustomer.id}`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((data) => {
+        setCustomerOrders(data.orders || []);
+      })
+      .catch(() => setCustomerOrders([]))
+      .finally(() => setLoadingOrders(false));
+  }, [selectedCustomer]);
+
+  const needsExistingOrder = templateType !== 'IMPORT_INVOICE';
+  const eligibleOrders = useMemo(
+    () => customerOrders.filter((order) => order.template_type === 'IMPORT_INVOICE' && order.status === 'CONFIRMED'),
+    [customerOrders],
+  );
+
+  useEffect(() => {
+    if (!needsExistingOrder) {
+      setSelectedOrderId('');
+      return;
+    }
+
+    if (!selectedOrderId || !eligibleOrders.some((order) => String(order.id) === selectedOrderId)) {
+      setSelectedOrderId(eligibleOrders[0] ? String(eligibleOrders[0].id) : '');
+    }
+  }, [needsExistingOrder, eligibleOrders, selectedOrderId]);
+
+  const selectedOrder = useMemo(
+    () => eligibleOrders.find((order) => String(order.id) === selectedOrderId) || null,
+    [eligibleOrders, selectedOrderId],
+  );
+
   const autoBaseAmount = useMemo(() => toNum(amount) * toNum(exchangeRate), [amount, exchangeRate]);
 
   const summary = useMemo(() => {
@@ -107,12 +169,23 @@ export default function SendMessagePage() {
     return { base, vatAmount, withholdingAmount, netTotal };
   }, [autoBaseAmount, applyVat, applyWithholding]);
 
+  const effectiveAccountType = needsExistingOrder ? selectedOrder?.account_type || '' : accountType;
+  const effectiveAmount = needsExistingOrder ? Number(selectedOrder?.amount || 0) : toNum(amount);
+  const effectiveExchangeRate = needsExistingOrder ? Number(selectedOrder?.exchange_rate || 0) : toNum(exchangeRate);
+  const effectiveExchangeRateCurrency = needsExistingOrder ? selectedOrder?.exchange_rate_currency || 'CNY' : exchangeRateCurrency;
+  const effectiveBase = needsExistingOrder ? Number(selectedOrder?.total_amount || 0) : summary.base;
+  const effectiveNetTotal = needsExistingOrder ? Number(selectedOrder?.total_amount || 0) : summary.netTotal;
+
   const meta = TEMPLATE_TYPES.find((x) => x.value === templateType) || TEMPLATE_TYPES[0];
-  const previewOrderCode = 'ORD-INV-YYMMDD-001';
+  const previewOrderCode = selectedOrder?.order_code || 'IMP-INV-YYMMDD-001';
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedCustomer) return;
+    if (needsExistingOrder && !selectedOrder) {
+      await Swal.fire({ icon: 'warning', title: 'ยังไม่ได้เลือกคำสั่งซื้อ', text: 'กรุณาเลือกคำสั่งซื้อที่ยืนยันแล้วก่อนส่งเอกสารนี้' });
+      return;
+    }
 
     const templateLabel = TEMPLATE_TYPES.find((t) => t.value === templateType)?.label ?? templateType;
     const confirmed = await Swal.fire({
@@ -121,7 +194,8 @@ export default function SendMessagePage() {
         <div style="text-align:left;font-size:14px;line-height:2">
           <div><b>ลูกค้า:</b> ${selectedCustomer.customer_code} — ${selectedCustomer.display_name}</div>
           <div><b>Template:</b> ${templateLabel}</div>
-          ${summary.netTotal ? `<div><b>ยอดสุทธิ:</b> ${money(summary.netTotal)}</div>` : ''}
+          ${selectedOrder ? `<div><b>อ้างอิง Order:</b> ${selectedOrder.order_code}</div>` : ''}
+          ${effectiveNetTotal ? `<div><b>ยอดสุทธิ:</b> ${money(effectiveNetTotal)}</div>` : ''}
         </div>
       `,
       icon: 'question',
@@ -144,16 +218,17 @@ export default function SendMessagePage() {
         body: JSON.stringify({
           customerId: selectedCustomer.id,
           templateType,
-          accountType: accountType || undefined,
-          amount: amount ? Number(amount) : undefined,
-          exchangeRate: exchangeRate ? Number(exchangeRate) : undefined,
+          orderId: selectedOrder ? selectedOrder.id : undefined,
+          accountType: needsExistingOrder ? undefined : accountType || undefined,
+          amount: needsExistingOrder ? undefined : (amount ? Number(amount) : undefined),
+          exchangeRate: needsExistingOrder ? undefined : (exchangeRate ? Number(exchangeRate) : undefined),
           exchangeRateCurrency,
-          totalAmount: summary.base || undefined,
-          applyVat,
-          applyWithholding,
-          vatAmount: summary.vatAmount || undefined,
-          withholdingAmount: summary.withholdingAmount || undefined,
-          netTotal: summary.netTotal || undefined,
+          totalAmount: needsExistingOrder ? undefined : (summary.base || undefined),
+          applyVat: needsExistingOrder ? undefined : applyVat,
+          applyWithholding: needsExistingOrder ? undefined : applyWithholding,
+          vatAmount: needsExistingOrder ? undefined : (summary.vatAmount || undefined),
+          withholdingAmount: needsExistingOrder ? undefined : (summary.withholdingAmount || undefined),
+          netTotal: needsExistingOrder ? undefined : (summary.netTotal || undefined),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -175,7 +250,7 @@ export default function SendMessagePage() {
   return (
     <section>
       <h1 className="page-title">ส่งข้อความ Flex Message</h1>
-      <p className="page-subtitle">ส่งตาม template และดู Flex preview ด้านขวาแบบเรียลไทม์</p>
+      <p className="page-subtitle">สร้าง Import Invoice ใหม่ หรือส่งเอกสารต่อเนื่องจาก order เดิมที่ยืนยันแล้ว</p>
 
       <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'minmax(320px, 1fr) minmax(300px, 420px)', alignItems: 'start' }}>
         <div className="table-shell" style={{ padding: 18 }}>
@@ -220,58 +295,95 @@ export default function SendMessagePage() {
               ))}
             </select>
 
-            <label className="field-label">Account Type</label>
-            <select
-              className="select"
-              style={{ width: '100%' }}
-              value={accountType}
-              onChange={(e) => setAccountType(e.target.value)}
-            >
-              <option value="">-- Select Account Type --</option>
-              {accountTypes.map((a) => (
-                <option key={a.id} value={a.code}>
-                  {a.label} ({a.code})
-                </option>
-              ))}
-            </select>
+            {needsExistingOrder ? (
+              <>
+                <label className="field-label">Order อ้างอิง *</label>
+                <select
+                  className="select"
+                  style={{ width: '100%' }}
+                  value={selectedOrderId}
+                  onChange={(e) => setSelectedOrderId(e.target.value)}
+                  disabled={!selectedCustomer || loadingOrders || eligibleOrders.length === 0}
+                >
+                  <option value="">
+                    {loadingOrders ? 'กำลังโหลด order...' : eligibleOrders.length === 0 ? 'ไม่มี order ที่ยืนยันแล้ว' : '-- Select Order --'}
+                  </option>
+                  {eligibleOrders.map((order) => (
+                    <option key={order.id} value={order.id}>
+                      {order.order_code} • {statusLabel(order.status)}
+                    </option>
+                  ))}
+                </select>
 
-            <label className="field-label">Amount</label>
-            <input className="input" style={{ width: '100%' }} type="number" value={amount} onChange={(e) => setAmount(e.target.value)} step="0.01" />
+                {selectedOrder && (
+                  <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: '#f7f8fb', border: '1px solid #e5e7eb' }}>
+                    <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>{selectedOrder.order_code}</div>
+                    <div style={{ display: 'grid', gap: 6, fontSize: 13, color: '#475569' }}>
+                      <div>สถานะ: {statusLabel(selectedOrder.status)}</div>
+                      <div>ประเภทบัญชี: {selectedOrder.account_type || '-'}</div>
+                      <div>จำนวนเงิน: {money(Number(selectedOrder.amount || 0))}</div>
+                      <div>อัตราแลกเปลี่ยน: {selectedOrder.exchange_rate != null ? `${selectedOrder.exchange_rate} ${selectedOrder.exchange_rate_currency || 'CNY'}` : '-'}</div>
+                      <div>ยอดสุทธิ: {money(Number(selectedOrder.total_amount || 0))}</div>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <label className="field-label">Account Type</label>
+                <select
+                  className="select"
+                  style={{ width: '100%' }}
+                  value={accountType}
+                  onChange={(e) => setAccountType(e.target.value)}
+                >
+                  <option value="">-- Select Account Type --</option>
+                  {accountTypes.map((a) => (
+                    <option key={a.id} value={a.code}>
+                      {a.label} ({a.code})
+                    </option>
+                  ))}
+                </select>
 
-          <label className="field-label">Exchange Rate</label>
-          <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 110px' }}>
-            <input className="input" style={{ width: '100%' }} type="number" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)} step="0.000001" />
-            <select
-              className="select"
-              style={{ width: '100%' }}
-              value={exchangeRateCurrency}
-              onChange={(e) => setExchangeRateCurrency(e.target.value as 'USD' | 'CNY' | 'THB')}
-            >
-              <option value="CNY">CNY</option>
-              <option value="USD">USD</option>
-              <option value="THB">THB</option>
-            </select>
-          </div>
+                <label className="field-label">Amount</label>
+                <input className="input" style={{ width: '100%' }} type="number" value={amount} onChange={(e) => setAmount(e.target.value)} step="0.01" />
 
-            <label className="field-label">Total (ฐานคำนวณ)</label>
-            <input
-              className="input"
-              style={{ width: '100%', background: '#f7f8fb', color: '#344054' }}
-              type="text"
-              value={summary.base.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-              readOnly
-            />
+                <label className="field-label">Exchange Rate</label>
+                <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 110px' }}>
+                  <input className="input" style={{ width: '100%' }} type="number" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)} step="0.000001" />
+                  <select
+                    className="select"
+                    style={{ width: '100%' }}
+                    value={exchangeRateCurrency}
+                    onChange={(e) => setExchangeRateCurrency(e.target.value as 'USD' | 'CNY' | 'THB')}
+                  >
+                    <option value="CNY">CNY</option>
+                    <option value="USD">USD</option>
+                    <option value="THB">THB</option>
+                  </select>
+                </div>
 
-            <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, color: '#2a3547' }}>
-                <input type="checkbox" checked={applyVat} onChange={(e) => setApplyVat(e.target.checked)} />
-                  Vat 7% (ภาษีมูลค่าเพิ่ม)
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, color: '#2a3547' }}>
-                <input type="checkbox" checked={applyWithholding} onChange={(e) => setApplyWithholding(e.target.checked)} />
-                 หัก ณ ที่จ่าย 3%
-              </label>
-            </div>
+                <label className="field-label">Total (ฐานคำนวณ)</label>
+                <input
+                  className="input"
+                  style={{ width: '100%', background: '#f7f8fb', color: '#344054' }}
+                  type="text"
+                  value={summary.base.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  readOnly
+                />
+
+                <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, color: '#2a3547' }}>
+                    <input type="checkbox" checked={applyVat} onChange={(e) => setApplyVat(e.target.checked)} />
+                    Vat 7% (ภาษีมูลค่าเพิ่ม)
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, color: '#2a3547' }}>
+                    <input type="checkbox" checked={applyWithholding} onChange={(e) => setApplyWithholding(e.target.checked)} />
+                    หัก ณ ที่จ่าย 3%
+                  </label>
+                </div>
+              </>
+            )}
 
             {result && (
               <div className={`badge ${result.ok ? 'badge-success' : 'badge-danger'}`} style={{ marginTop: 14 }}>
@@ -279,7 +391,12 @@ export default function SendMessagePage() {
               </div>
             )}
 
-            <button className="btn btn-primary" type="submit" disabled={!selectedCustomer || sending} style={{ marginTop: 16, width: '100%' }}>
+            <button
+              className="btn btn-primary"
+              type="submit"
+              disabled={!selectedCustomer || sending || (needsExistingOrder && !selectedOrder)}
+              style={{ marginTop: 16, width: '100%' }}
+            >
               {sending ? 'Sending...' : 'ส่ง Flex Message'}
             </button>
           </form>
@@ -293,15 +410,15 @@ export default function SendMessagePage() {
               <p style={{ fontSize: 12, opacity: 0.9, marginTop: 4 }}>{previewOrderCode}</p>
             </div>
             <div style={{ padding: 12, display: 'grid', gap: 8 }}>
-              <PreviewRow label="ประเภทบัญชี" value={accountType || '-'} />
-              <PreviewRow label="จำนวนเงิน" value={money(toNum(amount))} />
-              <PreviewRow label="อัตราแลกเปลี่ยน" value={exchangeRate ? `${exchangeRate} ${exchangeRateCurrency}` : '-'} />
-              <PreviewRow label="ยอดฐาน" value={money(summary.base)} />
-              {applyVat && <PreviewRow label="VAT 7%" value={money(summary.vatAmount)} />}
-              {applyWithholding && <PreviewRow label="หัก ณ ที่จ่าย 3%" value={money(summary.withholdingAmount)} />}
-              <PreviewRow label="ยอดสุทธิ" value={money(summary.netTotal)} emphasize />
+              <PreviewRow label="ประเภทบัญชี" value={effectiveAccountType || '-'} />
+              <PreviewRow label="จำนวนเงิน" value={money(effectiveAmount)} />
+              <PreviewRow label="อัตราแลกเปลี่ยน" value={effectiveExchangeRate ? `${effectiveExchangeRate} ${effectiveExchangeRateCurrency}` : '-'} />
+              <PreviewRow label="ยอดฐาน" value={money(effectiveBase)} />
+              {!needsExistingOrder && applyVat && <PreviewRow label="VAT 7%" value={money(summary.vatAmount)} />}
+              {!needsExistingOrder && applyWithholding && <PreviewRow label="หัก ณ ที่จ่าย 3%" value={money(summary.withholdingAmount)} />}
+              <PreviewRow label="ยอดสุทธิ" value={money(effectiveNetTotal)} emphasize />
               <div style={{ borderTop: '1px solid #eef2f7', marginTop: 2, paddingTop: 8, fontSize: 12, color: '#64748b' }}>
-                {templateType === 'INVOICE' ? 'บิลค่าส่ง: ไม่มีวันหมดอายุอัตโนมัติ' : 'กรุณายืนยันภายใน 24 ชั่วโมง'}
+                {meta.footer}
               </div>
             </div>
           </div>

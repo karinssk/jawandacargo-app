@@ -106,7 +106,7 @@ router.get('/:id', requireAuth, async (req, res) => {
       ),
       pool.query(
         `SELECT id, order_code, template_type, account_type,
-                amount, exchange_rate, total_amount, status,
+                amount, exchange_rate, exchange_rate_currency, total_amount, status,
                 expires_at, confirmed_at, created_at
          FROM orders WHERE customer_id = $1
          ORDER BY created_at DESC`,

@@ -4,6 +4,7 @@
   "type": "module",
   "main": "src/server.js",
   "scripts": {
+    "admin:upsert": "node --env-file=../.env scripts/upsert-admin.js",
     "start": "node --env-file=../.env src/server.js",
     "dev": "node --env-file=../.env --watch src/server.js"
   },

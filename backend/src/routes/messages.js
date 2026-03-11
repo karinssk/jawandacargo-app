@@ -7,7 +7,8 @@ const router = Router();
 
 const SendSchema = z.object({
   customerId: z.number().int().positive(),
-  templateType: z.enum(['INVOICE', 'IMPORT_INVOICE', 'CONFIRM', 'RECEIPT']),
+  templateType: z.enum(['IMPORT_INVOICE', 'CONFIRM', 'RECEIPT']),
+  orderId: z.number().int().positive().optional(),
   accountType: z.string().optional(),
   amount: z.number().positive().optional(),
   exchangeRate: z.number().positive().optional(),
@@ -21,11 +22,12 @@ const SendSchema = z.object({
 });
 
 const TEMPLATE_META = {
-  INVOICE: { title: 'แจ้งค่าส่ง', accent: '#f57c00', codePrefix: 'SHIPPING BILL', footer: 'บิลค่าส่ง: ไม่มีวันหมดอายุอัตโนมัติ' },
   IMPORT_INVOICE: { title: 'ใบแจ้งหนี้นำเข้า', accent: '#1565c0', codePrefix: 'IMPORT INVOICE', footer: 'กรุณายืนยันภายใน 24 ชั่วโมง' },
-  CONFIRM: { title: 'ยืนยันคำสั่งซื้อ', accent: '#2e7d32', codePrefix: 'ORDER CONFIRMATION', footer: 'กรุณายืนยันภายใน 24 ชั่วโมง' },
-  RECEIPT: { title: 'ใบเสร็จรับเงิน', accent: '#6a1b9a', codePrefix: 'RECEIPT', footer: 'กรุณาตรวจสอบข้อมูลให้เรียบร้อย' },
+  CONFIRM: { title: 'ยืนยันคำสั่งซื้อ', accent: '#2e7d32', codePrefix: 'ORDER CONFIRMATION', footer: 'คำสั่งซื้อได้รับการยืนยันเรียบร้อยแล้ว' },
+  RECEIPT: { title: 'ใบเสร็จรับเงิน', accent: '#6a1b9a', codePrefix: 'RECEIPT', footer: 'ใบเสร็จสำหรับรายการที่ยืนยันแล้ว' },
 };
+
+const ORDER_SOURCE_TEMPLATE = 'IMPORT_INVOICE';
 
 async function generateOrderCode(client, templateType) {
   const seq = await client.query("SELECT nextval('order_seq') AS val");
@@ -34,7 +36,7 @@ async function generateOrderCode(client, templateType) {
   const yy = String(now.getFullYear()).slice(-2);
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   const dd = String(now.getDate()).padStart(2, '0');
-  const prefix = templateType === 'IMPORT_INVOICE' ? 'IMP-INV' : 'ORD-INV';
+  const prefix = templateType === 'IMPORT_INVOICE' ? 'IMP-INV' : 'ORD';
   return `${prefix}-${yy}${mm}${dd}-${n}`;
 }
 
@@ -61,7 +63,7 @@ function fmt(value) {
 }
 
 function buildFlexMessage(data, orderCode, orderId, cfg, accountMeta = null) {
-  const baseMeta = TEMPLATE_META[data.templateType] || TEMPLATE_META.INVOICE;
+  const baseMeta = TEMPLATE_META[data.templateType] || TEMPLATE_META.IMPORT_INVOICE;
   const meta = {
     title: cfg?.display_name || baseMeta.title,
     accent: cfg?.accent_color || baseMeta.accent,
@@ -106,7 +108,7 @@ function buildFlexMessage(data, orderCode, orderId, cfg, accountMeta = null) {
     { type: 'text', text: meta.footer, size: 'xs', color: '#4b5563', wrap: true },
   ];
 
-  if (data.templateType === 'INVOICE') {
+  if (data.templateType === 'IMPORT_INVOICE') {
     footerContents.push(
       {
         type: 'box',
@@ -194,6 +196,15 @@ router.post('/send', requireAuth, async (req, res) => {
     return res.status(400).json({ error: parse.error.flatten() });
   }
   const data = parse.data;
+  if (data.templateType === ORDER_SOURCE_TEMPLATE) {
+    if (
+      typeof data.amount !== 'number'
+      || typeof data.exchangeRate !== 'number'
+      || typeof data.totalAmount !== 'number'
+    ) {
+      return res.status(400).json({ error: 'Import invoice requires amount, exchange rate, and total amount' });
+    }
+  }
 
   const client = await pool.connect();
   try {
@@ -229,24 +240,87 @@ router.post('/send', requireAuth, async (req, res) => {
         [data.accountType],
       )
       : { rowCount: 0, rows: [] };
-    const accountMeta = accountMetaResult.rowCount > 0 ? accountMetaResult.rows[0] : null;
+    let accountMeta = accountMetaResult.rowCount > 0 ? accountMetaResult.rows[0] : null;
+    let orderId;
+    let orderCode;
+    let payloadForMessage = data;
 
-    const orderCode = await generateOrderCode(client, data.templateType);
+    if (data.templateType === ORDER_SOURCE_TEMPLATE) {
+      const orderResult = await client.query(
+        `INSERT INTO orders
+           (order_code, customer_id, template_type, account_type,
+            amount, exchange_rate, exchange_rate_currency, total_amount, status, expires_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'PENDING', NOW() + INTERVAL '24 hours')
+         RETURNING id, order_code`,
+        [
+          await generateOrderCode(client, data.templateType),
+          data.customerId,
+          ORDER_SOURCE_TEMPLATE,
+          data.accountType,
+          data.amount,
+          data.exchangeRate,
+          data.exchangeRateCurrency || 'CNY',
+          data.netTotal ?? data.totalAmount,
+        ],
+      );
+      orderId = orderResult.rows[0].id;
+      orderCode = orderResult.rows[0].order_code;
+    } else {
+      if (!data.orderId) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'orderId is required for this document type' });
+      }
 
-    const expiresAt = data.templateType === 'INVOICE' ? null : "NOW() + INTERVAL '24 hours'";
+      const orderResult = await client.query(
+        `SELECT id, order_code, customer_id, template_type, account_type,
+                amount, exchange_rate, exchange_rate_currency, total_amount, status
+         FROM orders
+         WHERE id = $1 AND customer_id = $2
+         LIMIT 1`,
+        [data.orderId, data.customerId],
+      );
 
-    const orderResult = await client.query(
-      `INSERT INTO orders
-         (order_code, customer_id, template_type, account_type,
-          amount, exchange_rate, total_amount, status, expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'PENDING', ${expiresAt})
-       RETURNING id`,
-      [orderCode, data.customerId, data.templateType, data.accountType,
-        data.amount, data.exchangeRate, data.netTotal ?? data.totalAmount],
-    );
-    const orderId = orderResult.rows[0].id;
+      if (orderResult.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Order not found for this customer' });
+      }
 
-    const flexMessage = buildFlexMessage(data, orderCode, orderId, cfg, accountMeta);
+      const order = orderResult.rows[0];
+      if (order.template_type !== ORDER_SOURCE_TEMPLATE) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Only import invoice orders can be used as the source document' });
+      }
+      if (order.status !== 'CONFIRMED') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Order must be confirmed before sending this document' });
+      }
+
+      orderId = order.id;
+      orderCode = order.order_code;
+      payloadForMessage = {
+        ...data,
+        accountType: order.account_type || undefined,
+        amount: order.amount != null ? Number(order.amount) : undefined,
+        exchangeRate: order.exchange_rate != null ? Number(order.exchange_rate) : undefined,
+        exchangeRateCurrency: order.exchange_rate_currency || 'CNY',
+        totalAmount: order.total_amount != null ? Number(order.total_amount) : undefined,
+        netTotal: order.total_amount != null ? Number(order.total_amount) : undefined,
+      };
+
+      if (order.account_type) {
+        const existingAccount = await client.query(
+          `SELECT code, label, account_name, account_number
+           FROM account_types
+           WHERE code = $1 AND is_active = TRUE`,
+          [order.account_type],
+        );
+        accountMeta = existingAccount.rowCount > 0 ? existingAccount.rows[0] : null;
+      } else {
+        accountMeta = null;
+      }
+    }
+
+    const flexMessage = buildFlexMessage(payloadForMessage, orderCode, orderId, cfg, accountMeta);
     let lineError = null;
 
     try {

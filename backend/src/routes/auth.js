@@ -1,5 +1,7 @@
 import { Router } from 'express';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { pool } from '../db.js';
 
 const router = Router();
 
@@ -23,24 +25,91 @@ export function requireAuth(req, res, next) {
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
   try {
     req.user = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
     next();
   } catch {
     res.status(401).json({ error: 'Invalid token' });
   }
 }
 
-router.post('/login', (req, res) => {
-  const { username, password } = req.body || {};
-  const adminUser = process.env.ADMIN_USER || 'admin';
-  const adminPass = process.env.ADMIN_PASS || 'admin';
+router.post('/login', async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    const normalizedUsername = typeof username === 'string' ? username.trim() : '';
+    const rawPassword = typeof password === 'string' ? password : '';
 
-  if (username !== adminUser || password !== adminPass) {
-    return res.status(401).json({ error: 'Invalid credentials' });
+    console.log('[auth/login] request received', {
+      username: normalizedUsername || null,
+      hasPassword: Boolean(rawPassword),
+    });
+
+    if (!normalizedUsername || !rawPassword) {
+      console.warn('[auth/login] missing username or password');
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, username, password_hash, display_name, is_active
+       FROM admin_users
+       WHERE LOWER(username) = LOWER($1)
+       LIMIT 1`,
+      [normalizedUsername],
+    );
+
+    console.log('[auth/login] admin lookup complete', {
+      username: normalizedUsername,
+      rowCount: result.rowCount,
+    });
+
+    const admin = result.rows[0];
+    if (!admin || !admin.is_active) {
+      console.warn('[auth/login] admin not found or inactive', {
+        username: normalizedUsername,
+        found: Boolean(admin),
+        isActive: admin?.is_active ?? null,
+      });
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const isPasswordValid = await bcrypt.compare(rawPassword, admin.password_hash);
+    if (!isPasswordValid) {
+      console.warn('[auth/login] password mismatch', {
+        username: normalizedUsername,
+        adminId: admin.id,
+      });
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    await pool.query(
+      `UPDATE admin_users
+       SET last_login_at = NOW(), updated_at = NOW()
+      WHERE id = $1`,
+      [admin.id],
+    );
+
+    console.log('[auth/login] login success', {
+      username: admin.username,
+      adminId: admin.id,
+    });
+
+    const token = sign({
+      sub: admin.username,
+      role: 'admin',
+      adminId: admin.id,
+      displayName: admin.display_name || admin.username,
+    });
+    res.cookie(COOKIE_NAME, token, COOKIE_OPTS);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[auth/login] unexpected error', {
+      message: err?.message,
+      stack: err?.stack,
+      code: err?.code,
+    });
+    return res.status(500).json({ error: 'Internal server error' });
   }
-
-  const token = sign({ sub: username, role: 'admin' });
-  res.cookie(COOKIE_NAME, token, COOKIE_OPTS);
-  res.json({ ok: true });
 });
 
 router.post('/logout', (_req, res) => {
@@ -49,7 +118,12 @@ router.post('/logout', (_req, res) => {
 });
 
 router.get('/me', requireAuth, (req, res) => {
-  res.json({ user: req.user.sub, role: req.user.role });
+  res.json({
+    user: req.user.sub,
+    role: req.user.role,
+    adminId: req.user.adminId,
+    displayName: req.user.displayName,
+  });
 });
 
 export default router;

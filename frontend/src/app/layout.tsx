@@ -7,9 +7,25 @@ const manrope = Manrope({
   variable: '--font-main',
 });
 
+const SHARE_TITLE = 'JAWANDA CARGO';
+const SHARE_DESCRIPTION = 'add line official account | JAWANDA CARGO บริการนำเข้าสินค้าจากจีนถูกต้องตามกฏหมาย100%';
+
 export const metadata: Metadata = {
-  title: 'UTM Tracking',
-  description: 'UTM Tracking System',
+  title: SHARE_TITLE,
+  description: SHARE_DESCRIPTION,
+  applicationName: SHARE_TITLE,
+  openGraph: {
+    title: SHARE_TITLE,
+    description: SHARE_DESCRIPTION,
+    siteName: SHARE_TITLE,
+    locale: 'th_TH',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: SHARE_TITLE,
+    description: SHARE_DESCRIPTION,
+  },
   icons: {
     icon: '/logo.png',
     shortcut: '/logo.png',

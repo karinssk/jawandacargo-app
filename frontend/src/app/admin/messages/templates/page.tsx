@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-type TemplateType = 'INVOICE' | 'IMPORT_INVOICE' | 'CONFIRM' | 'RECEIPT';
+type TemplateType = 'IMPORT_INVOICE' | 'CONFIRM' | 'RECEIPT';
 
 interface TemplateConfig {
   template_type: TemplateType;
@@ -14,13 +14,13 @@ interface TemplateConfig {
   updated_at: string;
 }
 
-const ORDER: TemplateType[] = ['INVOICE', 'IMPORT_INVOICE', 'CONFIRM', 'RECEIPT'];
+const ORDER: TemplateType[] = ['IMPORT_INVOICE', 'CONFIRM', 'RECEIPT'];
 
 export default function TemplateConfigPage() {
   const [templates, setTemplates] = useState<TemplateConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingType, setSavingType] = useState<TemplateType | null>(null);
-  const [activeTab, setActiveTab] = useState<TemplateType>('INVOICE');
+  const [activeTab, setActiveTab] = useState<TemplateType>('IMPORT_INVOICE');
 
   useEffect(() => {
     fetch('/api/templates', { credentials: 'include' })
@@ -187,7 +187,7 @@ function TemplateFlexPreview({ template }: { template: TemplateConfig }) {
         </div>
 
         <div style={{ padding: 12, display: 'grid', gap: 7 }}>
-          <PreviewRow label="เลขคำสั่งซื้อ" value="ORD-INV-250304-001" />
+          <PreviewRow label="เลขคำสั่งซื้อ" value="IMP-INV-250304-001" />
           <PreviewRow label="ประเภทบัญชี" value="Kbank" />
           <PreviewRow label="ยอดฐาน" value="10,000 บาท" />
           <PreviewRow label="VAT 7%" value="700 บาท" />

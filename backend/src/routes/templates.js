@@ -6,7 +6,7 @@ import { requireAuth } from './auth.js';
 const router = Router();
 
 const TemplateSchema = z.object({
-  template_type: z.enum(['INVOICE', 'IMPORT_INVOICE', 'CONFIRM', 'RECEIPT']),
+  template_type: z.enum(['IMPORT_INVOICE', 'CONFIRM', 'RECEIPT']),
   display_name: z.string().min(1),
   accent_color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   subtitle: z.string().nullable().optional(),

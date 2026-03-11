@@ -42,7 +42,10 @@ services:
       CRON_SECRET: ${CRON_SECRET}
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        BACKEND_URL: http://backend:3101
     restart: unless-stopped
     ports:
       - "3100:3100"

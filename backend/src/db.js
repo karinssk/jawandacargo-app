@@ -1,5 +1,6 @@
 import pg from 'pg';
 import 'dotenv/config';
+import bcrypt from 'bcryptjs';
 
 const { Pool } = pg;
 
@@ -29,6 +30,17 @@ export async function initDb() {
         created_at      TIMESTAMPTZ DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS admin_users (
+        id              SERIAL PRIMARY KEY,
+        username        TEXT NOT NULL UNIQUE,
+        password_hash   TEXT NOT NULL,
+        display_name    TEXT,
+        is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+        last_login_at   TIMESTAMPTZ,
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ DEFAULT NOW()
+      );
+
       CREATE TABLE IF NOT EXISTS utm_sessions (
         id          SERIAL PRIMARY KEY,
         tracking_id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
@@ -56,6 +68,7 @@ export async function initDb() {
         account_type  TEXT,
         amount        NUMERIC(18,2),
         exchange_rate NUMERIC(12,6),
+        exchange_rate_currency TEXT,
         total_amount  NUMERIC(18,2),
         status        TEXT NOT NULL DEFAULT 'PENDING'
                         CHECK (status IN ('PENDING','CONFIRMED','UNCONFIRMED')),
@@ -121,15 +134,44 @@ export async function initDb() {
       ALTER TABLE account_types
       ADD COLUMN IF NOT EXISTS account_number TEXT;
     `);
+    await client.query(`
+      ALTER TABLE orders
+      ADD COLUMN IF NOT EXISTS exchange_rate_currency TEXT;
+    `);
+
+    await client.query(`
+      ALTER TABLE admin_users
+      ADD COLUMN IF NOT EXISTS display_name TEXT;
+    `);
+    await client.query(`
+      ALTER TABLE admin_users
+      ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+    `);
+    await client.query(`
+      ALTER TABLE admin_users
+      ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
+    `);
+    await client.query(`
+      ALTER TABLE admin_users
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+    `);
+    await client.query(`
+      ALTER TABLE admin_users
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+    `);
 
     await client.query(`
       INSERT INTO template_configs (template_type, display_name, accent_color, subtitle, footer_note, is_active)
       VALUES
-        ('INVOICE', 'แจ้งค่าส่ง', '#f57c00', 'SHIPPING BILL', 'บิลค่าส่ง: ไม่มีวันหมดอายุอัตโนมัติ', TRUE),
         ('IMPORT_INVOICE', 'ใบแจ้งหนี้นำเข้า', '#1565c0', 'IMPORT INVOICE', 'กรุณายืนยันภายใน 24 ชั่วโมง', TRUE),
-        ('CONFIRM', 'ยืนยันคำสั่งซื้อ', '#2e7d32', 'ORDER CONFIRMATION', 'กรุณายืนยันภายใน 24 ชั่วโมง', TRUE),
-        ('RECEIPT', 'ใบเสร็จรับเงิน', '#6a1b9a', 'RECEIPT', 'กรุณาตรวจสอบข้อมูลให้เรียบร้อย', TRUE)
+        ('CONFIRM', 'ยืนยันคำสั่งซื้อ', '#2e7d32', 'ORDER CONFIRMATION', 'คำสั่งซื้อได้รับการยืนยันเรียบร้อยแล้ว', TRUE),
+        ('RECEIPT', 'ใบเสร็จรับเงิน', '#6a1b9a', 'RECEIPT', 'ใบเสร็จสำหรับรายการที่ยืนยันแล้ว', TRUE)
       ON CONFLICT (template_type) DO NOTHING;
+    `);
+
+    await client.query(`
+      DELETE FROM template_configs
+      WHERE template_type = 'INVOICE';
     `);
 
     await client.query(`
@@ -140,6 +182,21 @@ export async function initDb() {
         ('BBL', 'Bangkok Bank', TRUE, 30)
       ON CONFLICT (code) DO NOTHING;
     `);
+
+    const bootstrapUser = process.env.ADMIN_USER || 'admin';
+    const bootstrapPass = process.env.ADMIN_PASS;
+    const bootstrapDisplayName = process.env.ADMIN_DISPLAY_NAME || 'Administrator';
+
+    if (bootstrapPass) {
+      const passwordHash = await bcrypt.hash(bootstrapPass, 10);
+      await client.query(
+        `INSERT INTO admin_users (username, password_hash, display_name, is_active)
+         VALUES ($1, $2, $3, TRUE)
+         ON CONFLICT (username) DO NOTHING`,
+        [bootstrapUser, passwordHash, bootstrapDisplayName],
+      );
+    }
+
     console.log('[db] Schema ready');
   } finally {
     client.release();

@@ -11,6 +11,15 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  async function readResponseBodySafely(res: Response) {
+    const text = await res.text();
+    try {
+      return text ? JSON.parse(text) : null;
+    } catch {
+      return text || null;
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
@@ -22,12 +31,21 @@ export default function LoginPage() {
         credentials: 'include',
         body: JSON.stringify({ username, password }),
       });
+      const payload = await readResponseBodySafely(res);
+
+      console.log('[login] response received', {
+        status: res.status,
+        ok: res.ok,
+        payload,
+      });
+
       if (res.ok) {
         router.push('/admin');
       } else {
-        setError('Invalid username or password');
+        setError(typeof payload === 'object' && payload && 'error' in payload ? String(payload.error) : 'Invalid username or password');
       }
-    } catch {
+    } catch (err) {
+      console.error('[login] request failed', err);
       setError('Connection failed, please try again');
     } finally {
       setLoading(false);
@@ -39,8 +57,8 @@ export default function LoginPage() {
       <div className="login-grid">
         <section className="hero-card">
           <Image src="/logo.png" alt="Jawanda Cargo" width={84} height={84} style={{ borderRadius: 16, marginBottom: 10 }} />
-          <h1 className="panel-title">UTM Tracking</h1>
-          <p className="panel-subtitle">Campaign source tracking, LINE linking, and admin messaging in one place.</p>
+          <h1 className="panel-title">JAWANDA CARGO</h1>
+          <p className="panel-subtitle">add line official account | JAWANDA CARGO บริการนำเข้าสินค้าจากจีนถูกต้องตามกฏหมาย100%</p>
           <p style={{ marginTop: 14 }}>Sign in to review attribution, customer profiles, and order delivery status.</p>
         </section>
 

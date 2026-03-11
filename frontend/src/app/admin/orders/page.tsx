@@ -29,6 +29,10 @@ const STATUS_BADGES: Record<string, string> = {
   UNCONFIRMED: 'badge-danger',
 };
 
+const TEMPLATE_LABELS: Record<string, string> = {
+  IMPORT_INVOICE: 'ใบแจ้งหนี้นำเข้า',
+};
+
 export default function OrdersPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -137,7 +141,7 @@ export default function OrdersPage() {
                   <td><code>{o.order_code}</code></td>
                   <td>{o.customer_code}</td>
                   <td>{o.display_name}</td>
-                  <td>{o.template_type}</td>
+                  <td>{TEMPLATE_LABELS[o.template_type] ?? o.template_type}</td>
                   <td>{o.amount ? Number(o.amount).toLocaleString() : '-'}</td>
                   <td>{o.total_amount ? Number(o.total_amount).toLocaleString() : '-'}</td>
                   <td>
