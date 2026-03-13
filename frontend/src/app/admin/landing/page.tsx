@@ -251,6 +251,9 @@ type EditForm = {
 
 const MAX_DATA_URL_BYTES = 850 * 1024;
 const MAX_IMAGE_DIMENSION = 1920;
+const MIN_IMAGE_DIMENSION = 420;
+const JPEG_QUALITIES = [0.9, 0.84, 0.78, 0.72, 0.66, 0.6, 0.54, 0.48, 0.42, 0.36];
+const RESIZE_SCALES = [1, 0.92, 0.84, 0.76, 0.68, 0.6, 0.52, 0.44, 0.36, 0.28];
 const BLOCK_TYPE_SET = new Set([
   'image',
   'add_friend',
@@ -305,34 +308,78 @@ function loadImageFromUrl(url: string) {
   });
 }
 
+function renderCompressedDataUrl(
+  img: HTMLImageElement,
+  width: number,
+  height: number,
+  mimeType: 'image/png' | 'image/jpeg',
+  quality?: number,
+) {
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(width));
+  canvas.height = Math.max(1, Math.round(height));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('canvas-context-failed');
+
+  // JPEG has no alpha; fill with white to avoid black transparent areas.
+  if (mimeType === 'image/jpeg') {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  return quality != null
+    ? canvas.toDataURL(mimeType, quality)
+    : canvas.toDataURL(mimeType);
+}
+
 async function compressImageToDataUrl(file: File) {
   const objectUrl = URL.createObjectURL(file);
   try {
     const img = await loadImageFromUrl(objectUrl);
     const longest = Math.max(img.width, img.height);
     const scale = longest > MAX_IMAGE_DIMENSION ? MAX_IMAGE_DIMENSION / longest : 1;
-    const width = Math.max(1, Math.round(img.width * scale));
-    const height = Math.max(1, Math.round(img.height * scale));
+    const baseWidth = Math.max(1, Math.round(img.width * scale));
+    const baseHeight = Math.max(1, Math.round(img.height * scale));
 
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('canvas-context-failed');
-    ctx.drawImage(img, 0, 0, width, height);
+    let bestDataUrl = '';
+    let bestSize = Number.POSITIVE_INFINITY;
 
-    const type = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-    let quality = 0.86;
-    let dataUrl = canvas.toDataURL(type, quality);
+    // Keep PNG only when already small enough; otherwise force JPEG for better compression.
+    if (file.type === 'image/png') {
+      const pngData = renderCompressedDataUrl(img, baseWidth, baseHeight, 'image/png');
+      const pngBytes = dataUrlByteLength(pngData);
+      if (pngBytes <= MAX_DATA_URL_BYTES) return pngData;
+      bestDataUrl = pngData;
+      bestSize = pngBytes;
+    }
 
-    if (type !== 'image/png') {
-      while (dataUrlByteLength(dataUrl) > MAX_DATA_URL_BYTES && quality > 0.45) {
-        quality -= 0.08;
-        dataUrl = canvas.toDataURL(type, quality);
+    for (const resizeScale of RESIZE_SCALES) {
+      const width = Math.max(1, Math.round(baseWidth * resizeScale));
+      const height = Math.max(1, Math.round(baseHeight * resizeScale));
+      const currentLongest = Math.max(width, height);
+      const allowTinyFallback = resizeScale === RESIZE_SCALES[RESIZE_SCALES.length - 1];
+      if (currentLongest < MIN_IMAGE_DIMENSION && !allowTinyFallback) continue;
+
+      for (const quality of JPEG_QUALITIES) {
+        const jpegData = renderCompressedDataUrl(img, width, height, 'image/jpeg', quality);
+        const jpegBytes = dataUrlByteLength(jpegData);
+        if (jpegBytes < bestSize) {
+          bestSize = jpegBytes;
+          bestDataUrl = jpegData;
+        }
+        if (jpegBytes <= MAX_DATA_URL_BYTES) {
+          return jpegData;
+        }
       }
     }
 
-    return dataUrl;
+    // Last fallback: return best attempt only if close enough to limit to avoid false rejects.
+    if (bestDataUrl && bestSize <= MAX_DATA_URL_BYTES * 1.03) {
+      return bestDataUrl;
+    }
+
+    throw new Error('too-large-after-compress');
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
@@ -532,13 +579,13 @@ export default function AdminLandingPage() {
     setError('');
     try {
       const compressedDataUrl = await compressImageToDataUrl(file);
-      if (dataUrlByteLength(compressedDataUrl) > MAX_DATA_URL_BYTES) {
-        setError('รูปภาพยังใหญ่เกินไปหลังบีบอัด กรุณาใช้รูปที่ขนาดเล็กลง');
-        return;
-      }
       setEditForm((f) => ({ ...f, image_url: compressedDataUrl }));
-    } catch {
-      setError('อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่');
+    } catch (err) {
+      if (err instanceof Error && err.message === 'too-large-after-compress') {
+        setError(`ไฟล์นี้มีรายละเอียดสูงมาก ระบบบีบอัดอัตโนมัติแล้วแต่ยังเกิน ${Math.round(MAX_DATA_URL_BYTES / 1024)}KB กรุณาใช้ภาพขนาดเล็กลง`);
+      } else {
+        setError('อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่');
+      }
     } finally {
       setUploadingImg(false);
       e.target.value = '';

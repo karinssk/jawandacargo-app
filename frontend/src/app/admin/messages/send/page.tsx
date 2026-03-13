@@ -382,6 +382,7 @@ export default function SendMessagePage() {
         body: JSON.stringify({
           customerId: selectedCustomer.id,
           templateType,
+          customMode: templateType === 'RECEIPT',
           orderId: selectedOrder ? selectedOrder.id : undefined,
           accountType: accountType || undefined,
           customHeaderTitle: templateType === 'RECEIPT' ? (customHeaderTitle || undefined) : undefined,

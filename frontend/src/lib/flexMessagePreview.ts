@@ -236,6 +236,11 @@ export function buildPreviewFlexMessage(input: PreviewInput) {
     customerName,
     netTotal,
   });
+  const amountText = templateType === 'IMPORT_INVOICE'
+    ? fmtBaht(amount)
+    : templateType === 'CONFIRM'
+      ? fmtYuan(amount)
+      : fmtBaht(amount);
 
   type RowEntry = [string, string, boolean?]; // [label, value, isBankInfo?]
   const rows: RowEntry[] = [];
@@ -246,7 +251,7 @@ export function buildPreviewFlexMessage(input: PreviewInput) {
       [template.detail_account_type_label, accountMeta?.label || accountType || '-', true],
       [template.detail_account_name_label, accountMeta?.account_name || '-', true],
       [template.detail_account_number_label, accountMeta?.account_number || '-', true],
-      [template.detail_amount_label, isImportInvoice ? fmtBaht(amount) : fmtYuan(amount)],
+      [template.detail_amount_label, amountText],
     );
   }
   if (!isImportInvoice && !isCustomMessage) {
