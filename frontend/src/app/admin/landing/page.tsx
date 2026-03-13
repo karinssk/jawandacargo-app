@@ -153,6 +153,56 @@ type EditForm = {
   is_active: boolean;
 };
 
+const MAX_DATA_URL_BYTES = 850 * 1024;
+const MAX_IMAGE_DIMENSION = 1920;
+
+function dataUrlByteLength(dataUrl: string) {
+  const base64 = dataUrl.split(',')[1] || '';
+  return Math.ceil((base64.length * 3) / 4);
+}
+
+function loadImageFromUrl(url: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new window.Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('invalid-image'));
+    img.src = url;
+  });
+}
+
+async function compressImageToDataUrl(file: File) {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await loadImageFromUrl(objectUrl);
+    const longest = Math.max(img.width, img.height);
+    const scale = longest > MAX_IMAGE_DIMENSION ? MAX_IMAGE_DIMENSION / longest : 1;
+    const width = Math.max(1, Math.round(img.width * scale));
+    const height = Math.max(1, Math.round(img.height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('canvas-context-failed');
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const type = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    let quality = 0.86;
+    let dataUrl = canvas.toDataURL(type, quality);
+
+    if (type !== 'image/png') {
+      while (dataUrlByteLength(dataUrl) > MAX_DATA_URL_BYTES && quality > 0.45) {
+        quality -= 0.08;
+        dataUrl = canvas.toDataURL(type, quality);
+      }
+    }
+
+    return dataUrl;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 export default function AdminLandingPage() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [loading, setLoading] = useState(true);
@@ -211,6 +261,12 @@ export default function AdminLandingPage() {
     setSaving(true);
     setError('');
     try {
+      if (editForm.image_url.startsWith('data:') && dataUrlByteLength(editForm.image_url) > MAX_DATA_URL_BYTES) {
+        setError('รูปภาพใหญ่เกินไป กรุณาอัปโหลดรูปที่เล็กลง หรือลดขนาดก่อนบันทึก');
+        setSaving(false);
+        return;
+      }
+
       const body = {
         type: editForm.type,
         image_url: editForm.image_url || null,
@@ -222,12 +278,21 @@ export default function AdminLandingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error('Failed');
+      if (!res.ok) {
+        if (res.status === 413) throw new Error('payload-too-large');
+        throw new Error('save-failed');
+      }
       const updated: Block = await res.json();
       setBlocks((prev) => prev.map((b) => (b.id === selectedId ? updated : b)));
       setSaveMsg('✓ Saved');
       setTimeout(() => setSaveMsg(''), 2000);
-    } catch { setError('บันทึกไม่สำเร็จ'); }
+    } catch (err) {
+      if (err instanceof Error && err.message === 'payload-too-large') {
+        setError('ข้อมูลรูปภาพใหญ่เกินไป (413) กรุณาลดขนาดรูป หรือใช้ URL รูปแทนการอัปโหลดไฟล์');
+      } else {
+        setError('บันทึกไม่สำเร็จ');
+      }
+    }
     finally { setSaving(false); }
   }
 
@@ -269,16 +334,24 @@ export default function AdminLandingPage() {
     setDragIdx(null); setDragOverIdx(null);
   }
 
-  function handleImageFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleImageFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingImg(true);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setEditForm((f) => ({ ...f, image_url: ev.target?.result as string }));
+    setError('');
+    try {
+      const compressedDataUrl = await compressImageToDataUrl(file);
+      if (dataUrlByteLength(compressedDataUrl) > MAX_DATA_URL_BYTES) {
+        setError('รูปภาพยังใหญ่เกินไปหลังบีบอัด กรุณาใช้รูปที่ขนาดเล็กลง');
+        return;
+      }
+      setEditForm((f) => ({ ...f, image_url: compressedDataUrl }));
+    } catch {
+      setError('อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่');
+    } finally {
       setUploadingImg(false);
-    };
-    reader.readAsDataURL(file);
+      e.target.value = '';
+    }
   }
 
   // ─── Left Panel ─────────────────────────────────────────────────────────────
