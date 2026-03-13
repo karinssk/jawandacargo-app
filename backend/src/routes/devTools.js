@@ -27,13 +27,16 @@ router.delete('/messages', requireAuth, async (_req, res) => {
   }
 });
 
-// DELETE /api/dev/users — delete all users
-router.delete('/users', requireAuth, async (_req, res) => {
+// DELETE /api/dev/customers — delete all customers (LINE users) and their related data
+router.delete('/customers', requireAuth, async (_req, res) => {
   try {
-    await pool.query('DELETE FROM users');
-    res.json({ ok: true, message: 'All users deleted' });
+    await pool.query('DELETE FROM message_logs');
+    await pool.query('DELETE FROM orders');
+    await pool.query('UPDATE utm_sessions SET line_uid = NULL, linked_at = NULL');
+    await pool.query('DELETE FROM customers');
+    res.json({ ok: true, message: 'All customers and their related data deleted' });
   } catch (err) {
-    console.error('[dev/users delete]', err);
+    console.error('[dev/customers delete]', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

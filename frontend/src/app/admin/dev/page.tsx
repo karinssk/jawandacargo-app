@@ -24,9 +24,9 @@ const ACTIONS: Action[] = [
     danger: true,
   },
   {
-    label: 'ลบ Users ทั้งหมด',
-    description: 'ลบบัญชีผู้ใช้ทั้งหมดออกจากระบบ',
-    endpoint: '/api/dev/users',
+    label: 'ลบ Customers ทั้งหมด',
+    description: 'ลบลูกค้า (LINE users) ทั้งหมด พร้อม orders และ message logs (UTM sessions ยังคงอยู่)',
+    endpoint: '/api/dev/customers',
     danger: true,
   },
 ];
