@@ -158,9 +158,14 @@ interface PreviewInput {
   accountMeta?: AccountMeta | null;
 }
 
-function fmt(value?: number) {
+function fmtBaht(value?: number) {
   if (typeof value !== 'number' || Number.isNaN(value)) return '-';
   return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} บาท`;
+}
+
+function fmtYuan(value?: number) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '-';
+  return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} หยวน`;
 }
 
 function pickColor(value: string | null | undefined, fallback: string) {
@@ -174,7 +179,7 @@ function interpolateTemplateText(value: string | null | undefined, context: {
   if (!value) return '';
   return String(value)
     .replace(/\{\{\s*customer_name\s*\}\}/gi, context.customerName || '-')
-    .replace(/\{\{\s*net_total\s*\}\}/gi, fmt(context.netTotal));
+    .replace(/\{\{\s*net_total\s*\}\}/gi, fmtBaht(context.netTotal));
 }
 
 export function buildPreviewFlexMessage(input: PreviewInput) {
@@ -217,14 +222,14 @@ export function buildPreviewFlexMessage(input: PreviewInput) {
     [template.detail_account_type_label, accountMeta?.label || accountType || '-', true],
     [template.detail_account_name_label, accountMeta?.account_name || '-', true],
     [template.detail_account_number_label, accountMeta?.account_number || '-', true],
-    [template.detail_amount_label, fmt(amount)],
+    [template.detail_amount_label, fmtYuan(amount)],
     [template.detail_exchange_rate_label, exchangeRateLabel],
-    [template.detail_total_label, fmt(totalAmount)],
+    [template.detail_total_label, fmtBaht(totalAmount)],
   ];
 
-  if (applyVat) rows.push([template.detail_vat_label, fmt(vatAmount || 0)]);
-  if (applyWithholding) rows.push([template.detail_withholding_label, fmt(withholdingAmount || 0)]);
-  if (typeof netTotal === 'number') rows.push([template.detail_net_total_label, fmt(netTotal)]);
+  if (applyVat) rows.push([template.detail_vat_label, fmtBaht(vatAmount || 0)]);
+  if (applyWithholding) rows.push([template.detail_withholding_label, fmtBaht(withholdingAmount || 0)]);
+  if (typeof netTotal === 'number') rows.push([template.detail_net_total_label, fmtBaht(netTotal)]);
 
   const bodyRows = rows.flatMap(([label, value, isBankInfo], idx) => {
     const isNameOrNumber = isBankInfo && (label === template.detail_account_name_label || label === template.detail_account_number_label);
