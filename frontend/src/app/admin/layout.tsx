@@ -11,6 +11,8 @@ const NAV_SECTIONS = [
       { href: '/admin', label: 'Dashboard', icon: '◫' },
       { href: '/admin/customers', label: 'Customers', icon: '◎' },
       { href: '/admin/orders', label: 'Orders', icon: '▦' },
+      { href: '/admin/landing', label: 'Landing Page', icon: '▣' },
+      { href: '/admin/site',    label: 'Site Settings',  icon: '⚙' },
     ],
   },
   {

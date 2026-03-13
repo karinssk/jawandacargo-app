@@ -694,6 +694,249 @@ textarea {
   margin-top: 10px;
 }
 
+.field-input {
+  display: block;
+  width: 100%;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  padding: 0 10px;
+  font-size: 0.87rem;
+  color: var(--text);
+}
+
+.field-input:focus {
+  outline: 2px solid rgba(245, 121, 0, 0.2);
+  border-color: #f8b35e;
+}
+
+/* ── LINE Add Friend CTA button animations ── */
+@keyframes line-glow-pulse {
+  0%, 100% {
+    box-shadow: 0 4px 24px rgba(6, 199, 85, 0.35);
+  }
+  50% {
+    box-shadow: 0 4px 48px rgba(6, 199, 85, 0.70), 0 0 0 5px rgba(6, 199, 85, 0.12);
+  }
+}
+
+@keyframes line-shine {
+  0%       { left: -80%; }
+  55%, 100% { left: 200%; }
+}
+
+.line-add-btn {
+  position: relative;
+  overflow: hidden;
+  animation: line-glow-pulse 2.2s ease-in-out infinite;
+  transition: filter 0.18s ease, transform 0.18s ease;
+}
+
+.line-add-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -80%;
+  width: 55%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.28) 50%,
+    transparent 100%
+  );
+  animation: line-shine 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.line-add-btn:hover:not(:disabled) {
+  filter: brightness(1.12);
+  box-shadow: 0 6px 56px rgba(6, 199, 85, 0.80) !important;
+}
+
+.line-add-btn:active:not(:disabled) {
+  transform: scaleY(0.97);
+  filter: brightness(0.94);
+  animation-play-state: paused;
+}
+
+/* ── LINE Banner block — large pill button on a background section ── */
+@keyframes line-banner-pulse {
+  0%, 100% {
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.30),
+      0 0 0 4px rgba(255, 255, 255, 0.22),
+      0 0 0 8px rgba(6, 199, 85, 0.10);
+  }
+  50% {
+    box-shadow:
+      0 12px 48px rgba(0, 0, 0, 0.40),
+      0 0 0 5px rgba(255, 255, 255, 0.35),
+      0 0 0 12px rgba(6, 199, 85, 0.18);
+  }
+}
+
+@keyframes line-banner-shine {
+  0%       { left: -90%; }
+  55%, 100% { left: 210%; }
+}
+
+.line-banner-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(10px, 2vw, 20px);
+  width: 100%;
+  max-width: 680px;
+  background: linear-gradient(135deg, #00b900 0%, #06c755 60%, #00d430 100%);
+  color: #fff;
+  border: none;
+  border-radius: 100px;
+  padding: clamp(14px, 3vw, 24px) clamp(20px, 4vw, 48px);
+  font-size: clamp(18px, 4.5vw, 30px);
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  animation: line-banner-pulse 2.4s ease-in-out infinite;
+  transition: transform 0.2s ease, filter 0.2s ease;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+/* shimmer sweep */
+.line-banner-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -90%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.32) 50%,
+    transparent 100%
+  );
+  animation: line-banner-shine 3.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* inner top highlight stripe */
+.line-banner-btn::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 40%;
+  background: linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 100%);
+  border-radius: 100px 100px 0 0;
+  pointer-events: none;
+}
+
+.line-banner-btn:hover:not(:disabled) {
+  transform: scale(1.025) translateY(-2px);
+  filter: brightness(1.10);
+}
+
+.line-banner-btn:active:not(:disabled) {
+  transform: scale(0.975) translateY(0);
+  filter: brightness(0.93);
+  animation-play-state: paused;
+}
+
+/* LINE logo box inside banner button */
+.line-banner-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border-radius: 12px;
+  padding: 4px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* ── Hero block overlaid LINE button (left-center) ── */
+.line-hero-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, #00b900 0%, #06c755 100%);
+  color: #fff;
+  border: none;
+  border-radius: 50px;
+  padding: clamp(10px, 2vw, 16px) clamp(16px, 3vw, 28px);
+  font-size: clamp(13px, 2.5vw, 17px);
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.35),
+    0 0 0 3px rgba(255, 255, 255, 0.30);
+  animation: line-glow-pulse 2.2s ease-in-out infinite;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  white-space: nowrap;
+}
+
+.line-hero-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -80%;
+  width: 55%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.30) 50%,
+    transparent 100%
+  );
+  animation: line-shine 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.line-hero-btn:hover:not(:disabled) {
+  transform: scale(1.06);
+  filter: brightness(1.12);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.45),
+    0 0 0 4px rgba(255, 255, 255, 0.45);
+  animation-play-state: paused;
+}
+
+.line-hero-btn:active:not(:disabled) {
+  transform: scale(0.97);
+  filter: brightness(0.94);
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.3),
+    0 0 0 2px rgba(255, 255, 255, 0.2);
+}
+
+/* Block palette cards in landing page builder */
+.palette-card {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+/* Preview block hover — show action bar */
+.preview-block .block-action-bar {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.preview-block:hover .block-action-bar {
+  opacity: 1;
+}
+
 @media (max-width: 960px) {
   .app-shell {
     grid-template-columns: 1fr;

@@ -1,1 +1,1 @@
-self.__NEXT_FONT_MANIFEST='{"pages":{},"app":{"/Users/mac/Desktop/utmm/utm-tracking/frontend/src/app/layout":["static/media/4c9affa5bc8f420e-s.p.woff2"]},"appUsingSizeAdjust":true,"pagesUsingSizeAdjust":false}';
+self.__NEXT_FONT_MANIFEST="{\"pages\":{},\"app\":{\"/Users/mac/Desktop/utmm/utm-tracking/frontend/src/app/layout\":[\"static/media/4c9affa5bc8f420e-s.p.woff2\"]},\"appUsingSizeAdjust\":true,\"pagesUsingSizeAdjust\":false}"

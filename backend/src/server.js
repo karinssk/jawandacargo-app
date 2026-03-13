@@ -18,6 +18,8 @@ import templatesRouter from './routes/templates.js';
 import accountTypesRouter from './routes/accountTypes.js';
 import cronRouter from './routes/cron.js';
 import devToolsRouter from './routes/devTools.js';
+import landingBlocksRouter from './routes/landingBlocks.js';
+import siteConfigRouter from './routes/siteConfig.js';
 
 const app = express();
 const PORT = process.env.PORT || 3101;
@@ -28,10 +30,12 @@ app.use(cookieParser());
 // LINE webhook needs raw body for signature verification
 app.use('/line/webhook', express.raw({ type: 'application/json' }));
 
-app.use(express.json());
+app.use(express.json({ limit: '20mb' }));
 
 // Public routes
 app.use('/api/config', configRouter);
+app.use('/api/landing-blocks', landingBlocksRouter);
+app.use('/api/site-config', siteConfigRouter);
 app.use('/api/visit', visitRouter);
 app.use('/api/link', linkRouter);
 app.use('/api/pre-follow', preFollowRouter);

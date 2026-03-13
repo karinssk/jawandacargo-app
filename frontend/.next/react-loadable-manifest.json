@@ -1,15 +1,1 @@
-{
-  "app/liff/LiffInner.tsx -> @line/liff": {
-    "id": 4590,
-    "files": [
-      "static/chunks/590.12e489df87a1c191.js"
-    ]
-  },
-  "app/liff/page.tsx -> ./LiffInner": {
-    "id": 2837,
-    "files": [
-      "static/chunks/239-5e1a98b9ea829c9e.js",
-      "static/chunks/837.5d804a6a69cc0ce5.js"
-    ]
-  }
-}
+{}

@@ -6,6 +6,7 @@ const router = Router();
 router.post('/', async (req, res) => {
   const {
     utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+    fbclid,
     source_url,
   } = req.body;
 
@@ -18,10 +19,10 @@ router.post('/', async (req, res) => {
   try {
     const result = await pool.query(
       `INSERT INTO utm_sessions
-         (utm_source, utm_medium, utm_campaign, utm_content, utm_term, source_url, ip, user_agent)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+         (utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbclid, source_url, ip, user_agent)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        RETURNING tracking_id`,
-      [utm_source, utm_medium, utm_campaign, utm_content, utm_term, source_url, ip, userAgent],
+      [utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbclid || null, source_url, ip, userAgent],
     );
 
     const { tracking_id } = result.rows[0];

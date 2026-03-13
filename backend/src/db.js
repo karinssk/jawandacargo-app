@@ -390,6 +390,11 @@ export async function initDb() {
     `);
 
     await client.query(`
+      ALTER TABLE utm_sessions
+      ADD COLUMN IF NOT EXISTS fbclid TEXT;
+    `);
+
+    await client.query(`
       ALTER TABLE template_configs
       ADD COLUMN IF NOT EXISTS button_receipt_label TEXT DEFAULT 'คลิกที่นี้';
     `);
@@ -434,6 +439,80 @@ export async function initDb() {
         [bootstrapUser, passwordHash, bootstrapDisplayName],
       );
     }
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS landing_blocks (
+        id          SERIAL PRIMARY KEY,
+        type        TEXT NOT NULL CHECK (type IN ('image', 'add_friend', 'hero-full-width')),
+        image_url   TEXT,
+        label       TEXT,
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    await client.query(`
+      ALTER TABLE landing_blocks ADD COLUMN IF NOT EXISTS label TEXT;
+    `);
+    // Migrate constraint to include all block types
+    await client.query(`
+      ALTER TABLE landing_blocks DROP CONSTRAINT IF EXISTS landing_blocks_type_check;
+    `);
+    await client.query(`
+      ALTER TABLE landing_blocks ADD CONSTRAINT landing_blocks_type_check
+        CHECK (type IN ('image', 'add_friend', 'hero-full-width', 'hero-full-width-btn-left', 'add_friend_banner', 'add_friend_card'));
+    `);
+
+    // ── Site Config (header / footer) ──────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS site_config (
+        key        TEXT PRIMARY KEY,
+        value      JSONB NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    await client.query(`
+      INSERT INTO site_config (key, value) VALUES
+      ('header', $1::jsonb)
+      ON CONFLICT (key) DO NOTHING
+    `, [JSON.stringify({
+      logo_url: '/logo.png',
+      brand_name: 'JAWANDA CARGO',
+      nav_links: [
+        { label: 'หน้าแรก',        href: 'https://jawandacargo-th.com/' },
+        { label: 'เกี่ยวกับเรา',   href: 'https://jawandacargo-th.com/about-us' },
+        { label: 'บริการของเรา',   href: 'https://jawandacargo-th.com/services' },
+        { label: 'โปรโมชั่นพิเศษ', href: 'https://jawandacargo-th.com/' },
+        { label: 'สินค้าแนะนำ',    href: 'https://jawandacargo-th.com/' },
+        { label: 'สาระน่ารู้',     href: 'https://jawandacargo-th.com/' },
+        { label: 'ติดต่อเรา',      href: 'https://jawandacargo-th.com/contact-us' },
+      ],
+    })]);
+    await client.query(`
+      INSERT INTO site_config (key, value) VALUES
+      ('footer', $1::jsonb)
+      ON CONFLICT (key) DO NOTHING
+    `, [JSON.stringify({
+      col1_title: 'ติดต่อเรา',
+      col1_lines: [
+        'โกดังสายไหม-เพิ่มสิน เขตสายไหม',
+        'กรุงเทพมหานคร',
+        'Line : @jawandacargo',
+        'Facebook : @jawandacargo',
+        'TEL. 02-165-0162',
+        'TEL. 099-420-7491',
+      ],
+      col2_title: 'เกี่ยวกับเรา',
+      col2_brand: 'บริษัท จาวานด้า คาร์โก้',
+      col2_desc:  'ผู้ให้บริการสั่งของจากจีน นำเข้าสินค้าจากจีน ครบวงจร ประสบการณ์มากกว่า 10 ปี พร้อมให้คำปรึกษาฟรี ทีมงานไทย-จีนคอยดูแล',
+      col3_title: 'ช่องทางการติดต่อ',
+      col3_links: [
+        { label: '💬 สอบถาม / เพิ่มเพื่อน คลิกที่นี้', href: 'https://lin.ee/8NQIBi9',                        color: '#06c755' },
+        { label: '📘 ปรึกษาฟรีได้ที่ Facebook',         href: 'https://www.facebook.com/jawandacargo',        color: '#1877f2' },
+        { label: '📞 สายด่วน 099-420-7491',              href: 'tel:0994207491',                               color: '#374151' },
+      ],
+      copyright: '2026 © Jawanda Cargo · jawandacargo-th.com',
+    })]);
 
     console.log('[db] Schema ready');
   } finally {
