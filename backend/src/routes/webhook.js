@@ -70,7 +70,7 @@ async function logWebhook({
 async function upsertCustomer(lineUid, displayName = null, pictureUrl = null) {
   const result = await pool.query(
     `INSERT INTO customers (customer_code, line_uid, display_name, picture_url, is_blocked)
-     VALUES ('JWD-' || LPAD(nextval('customer_seq')::text, 6, '0'), $1, $2, $3, FALSE)
+     VALUES ('JWD/' || LPAD(nextval('customer_seq')::text, 6, '0'), $1, $2, $3, FALSE)
      ON CONFLICT (line_uid) DO UPDATE
        SET display_name = COALESCE(EXCLUDED.display_name, customers.display_name),
            picture_url  = COALESCE(EXCLUDED.picture_url, customers.picture_url),

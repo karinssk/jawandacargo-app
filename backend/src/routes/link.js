@@ -24,7 +24,7 @@ router.post('/', async (req, res) => {
 
     const upsertResult = await client.query(
       `INSERT INTO customers (customer_code, line_uid, display_name, picture_url)
-       VALUES ('JWD-' || LPAD(nextval('customer_seq')::text, 6, '0'), $1, $2, $3)
+       VALUES ('JWD/' || LPAD(nextval('customer_seq')::text, 6, '0'), $1, $2, $3)
        ON CONFLICT (line_uid) DO UPDATE
          SET display_name = EXCLUDED.display_name,
              picture_url  = EXCLUDED.picture_url

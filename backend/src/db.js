@@ -408,8 +408,15 @@ export async function initDb() {
       VALUES
         ('IMPORT_INVOICE', 'ใบแจ้งหนี้นำเข้า', '#1565c0', 'IMPORT INVOICE', 'กรุณาชำระค่าใช้จ่ายนำเข้าตามบิลนี้', TRUE),
         ('CONFIRM', 'คำสั่งซื้อสินค้า', '#2e7d32', 'PURCHASE ORDER', 'กรุณาตรวจสอบรายละเอียดและยืนยันคำสั่งซื้อ', TRUE),
-        ('RECEIPT', 'ใบเสร็จรับเงิน', '#6a1b9a', 'RECEIPT', 'ใบเสร็จสำหรับรายการที่ยืนยันแล้ว', TRUE)
+        ('RECEIPT', 'ใบเสร็จรับเงิน', '#6a1b9a', 'RECEIPT', 'End-to-End Logistics Partner', TRUE)
       ON CONFLICT (template_type) DO NOTHING;
+    `);
+
+    await client.query(`
+      UPDATE template_configs
+      SET footer_note = 'End-to-End Logistics Partner'
+      WHERE template_type = 'RECEIPT'
+        AND (footer_note IS NULL OR footer_note = 'ใบเสร็จสำหรับรายการที่ยืนยันแล้ว');
     `);
 
     await client.query(`
@@ -446,6 +453,10 @@ export async function initDb() {
         type        TEXT NOT NULL CHECK (type IN ('image', 'add_friend', 'hero-full-width')),
         image_url   TEXT,
         label       TEXT,
+        button_url  TEXT,
+        button_left_pct REAL NOT NULL DEFAULT 50,
+        button_top_pct REAL NOT NULL DEFAULT 44,
+        button_width_pct REAL NOT NULL DEFAULT 42,
         sort_order  INTEGER NOT NULL DEFAULT 0,
         is_active   BOOLEAN NOT NULL DEFAULT TRUE,
         created_at  TIMESTAMPTZ DEFAULT NOW()
@@ -454,13 +465,25 @@ export async function initDb() {
     await client.query(`
       ALTER TABLE landing_blocks ADD COLUMN IF NOT EXISTS label TEXT;
     `);
+    await client.query(`
+      ALTER TABLE landing_blocks ADD COLUMN IF NOT EXISTS button_url TEXT;
+    `);
+    await client.query(`
+      ALTER TABLE landing_blocks ADD COLUMN IF NOT EXISTS button_left_pct REAL NOT NULL DEFAULT 50;
+    `);
+    await client.query(`
+      ALTER TABLE landing_blocks ADD COLUMN IF NOT EXISTS button_top_pct REAL NOT NULL DEFAULT 44;
+    `);
+    await client.query(`
+      ALTER TABLE landing_blocks ADD COLUMN IF NOT EXISTS button_width_pct REAL NOT NULL DEFAULT 42;
+    `);
     // Migrate constraint to include all block types
     await client.query(`
       ALTER TABLE landing_blocks DROP CONSTRAINT IF EXISTS landing_blocks_type_check;
     `);
     await client.query(`
       ALTER TABLE landing_blocks ADD CONSTRAINT landing_blocks_type_check
-        CHECK (type IN ('image', 'add_friend', 'hero-full-width', 'hero-full-width-btn-left', 'add_friend_banner', 'add_friend_card'));
+        CHECK (type IN ('image', 'add_friend', 'hero-full-width', 'hero-full-width-btn-left', 'add_friend_banner', 'add_friend_card', 'hero-with-dynamic-add-line'));
     `);
 
     // ── Site Config (header / footer) ──────────────────────────────────────────
@@ -507,9 +530,9 @@ export async function initDb() {
       col2_desc:  'ผู้ให้บริการสั่งของจากจีน นำเข้าสินค้าจากจีน ครบวงจร ประสบการณ์มากกว่า 10 ปี พร้อมให้คำปรึกษาฟรี ทีมงานไทย-จีนคอยดูแล',
       col3_title: 'ช่องทางการติดต่อ',
       col3_links: [
-        { label: '💬 สอบถาม / เพิ่มเพื่อน คลิกที่นี้', href: 'https://lin.ee/8NQIBi9',                        color: '#06c755' },
-        { label: '📘 ปรึกษาฟรีได้ที่ Facebook',         href: 'https://www.facebook.com/jawandacargo',        color: '#1877f2' },
-        { label: '📞 สายด่วน 099-420-7491',              href: 'tel:0994207491',                               color: '#374151' },
+        { label: 'สอบถาม / เพิ่มเพื่อน คลิกที่นี้', href: 'https://lin.ee/8NQIBi9',                        color: '#06c755' },
+        { label: 'ปรึกษาฟรีได้ที่ Facebook',         href: 'https://www.facebook.com/jawandacargo',        color: '#1877f2' },
+        { label: 'สายด่วน 099-420-7491',              href: 'tel:0994207491',                               color: '#374151' },
       ],
       copyright: '2026 © Jawanda Cargo · jawandacargo-th.com',
     })]);

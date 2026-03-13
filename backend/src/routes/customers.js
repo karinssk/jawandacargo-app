@@ -143,8 +143,12 @@ router.patch('/:id/code', requireAuth, async (req, res) => {
   if (!customer_code || typeof customer_code !== 'string') {
     return res.status(400).json({ error: 'customer_code is required' });
   }
-  const code = customer_code.trim().toUpperCase();
+  let code = customer_code.trim().toUpperCase();
+  code = code.replace(/^JWD-/, 'JWD/');
   if (!code) return res.status(400).json({ error: 'customer_code cannot be empty' });
+  if (!/^JWD\/[A-Z0-9]+$/.test(code)) {
+    return res.status(400).json({ error: 'customer_code must be in format JWD/xxxx' });
+  }
 
   try {
     const result = await pool.query(

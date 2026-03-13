@@ -2,5 +2,7 @@ node_modules
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+.next
+frontend/.next
 data/tracking.db
 .env

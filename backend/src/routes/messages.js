@@ -4,13 +4,19 @@ import { pool } from '../db.js';
 import { requireAuth } from './auth.js';
 
 const router = Router();
+const LEGACY_RECEIPT_FOOTER = 'ใบเสร็จสำหรับรายการที่ยืนยันแล้ว';
+const RECEIPT_FOOTER_DEFAULT = 'End-to-End Logistics Partner';
 
 const SendSchema = z.object({
   customerId: z.number().int().positive(),
   templateType: z.enum(['IMPORT_INVOICE', 'CONFIRM', 'RECEIPT']),
+  customMode: z.boolean().optional(),
   orderId: z.number().int().positive().optional(),
   accountType: z.string().optional(),
+  customHeaderTitle: z.string().trim().max(200).optional(),
+  customHeaderSubtitle: z.string().trim().max(200).optional(),
   bodyIntroText: z.string().trim().max(2000).optional(),
+  bodyIntroColor: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   accountNote: z.string().trim().max(1000).optional(),
   footerNote: z.string().trim().max(1000).optional(),
   receiptButtonLabel: z.string().trim().max(200).optional(),
@@ -93,7 +99,7 @@ const TEMPLATE_META = {
     separatorColor: '#f3f4f6',
     footerSeparatorColor: '#e5e7eb',
     codePrefix: 'RECEIPT',
-    footer: 'ใบเสร็จสำหรับรายการที่ยืนยันแล้ว',
+    footer: RECEIPT_FOOTER_DEFAULT,
     buttonConfirmLabel: 'ยืนยัน',
     buttonConfirmColor: '#16a34a',
     buttonCancelLabel: 'ยกเลิก',
@@ -154,9 +160,14 @@ async function pushLineMessage(lineUid, messages) {
   }
 }
 
-function fmt(value) {
+function fmtBaht(value) {
   if (typeof value !== 'number' || Number.isNaN(value)) return '-';
   return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} บาท`;
+}
+
+function fmtYuan(value) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '-';
+  return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} หยวน`;
 }
 
 function pickColor(value, fallback) {
@@ -165,13 +176,19 @@ function pickColor(value, fallback) {
 
 function interpolateTemplateText(value, context) {
   if (!value) return '';
+  const customerRef = context.customerCode || context.customerName || '-';
   return String(value)
-    .replace(/\{\{\s*customer_name\s*\}\}/gi, context.customerName || '-')
-    .replace(/\{\{\s*net_total\s*\}\}/gi, fmt(context.netTotal));
+    .replace(/\{\{\s*customer_name\s*\}\}/gi, customerRef)
+    .replace(/\{\{\s*customer_code\s*\}\}/gi, customerRef)
+    .replace(/\{\{\s*net_total\s*\}\}/gi, fmtBaht(context.netTotal));
 }
 
 function buildFlexMessage(data, orderCode, orderId, cfg, accountMeta = null) {
   const baseMeta = TEMPLATE_META[data.templateType] || TEMPLATE_META.IMPORT_INVOICE;
+  const rawFooter = [data.accountNote, data.footerNote].filter(Boolean).join('\n') || cfg?.footer_note || baseMeta.footer;
+  const normalizedFooter = data.templateType === 'RECEIPT' && rawFooter === LEGACY_RECEIPT_FOOTER
+    ? RECEIPT_FOOTER_DEFAULT
+    : rawFooter;
   const meta = {
     title: cfg?.display_name || baseMeta.title,
     accent: pickColor(cfg?.accent_color, baseMeta.accent),
@@ -179,12 +196,12 @@ function buildFlexMessage(data, orderCode, orderId, cfg, accountMeta = null) {
     bodyLabelColor: pickColor(cfg?.body_label_color, baseMeta.bodyLabelColor),
     bodyTextColor: pickColor(cfg?.body_text_color, baseMeta.bodyTextColor),
     bodyIntroText: data.bodyIntroText || cfg?.body_intro_text || null,
-    bodyIntroColor: pickColor(cfg?.body_intro_color, '#0b57b7'),
+    bodyIntroColor: pickColor(data.bodyIntroColor, pickColor(cfg?.body_intro_color, '#0b57b7')),
     footerTextColor: pickColor(cfg?.footer_text_color, baseMeta.footerTextColor),
     separatorColor: pickColor(cfg?.separator_color, baseMeta.separatorColor),
     footerSeparatorColor: pickColor(cfg?.footer_separator_color, baseMeta.footerSeparatorColor),
     codePrefix: cfg?.subtitle || baseMeta.codePrefix,
-    footer: [data.accountNote, data.footerNote].filter(Boolean).join('\n') || cfg?.footer_note || baseMeta.footer,
+    footer: normalizedFooter || (data.templateType === 'RECEIPT' ? RECEIPT_FOOTER_DEFAULT : baseMeta.footer),
     buttonConfirmLabel: cfg?.button_confirm_label || baseMeta.buttonConfirmLabel,
     buttonConfirmColor: pickColor(cfg?.button_confirm_color, baseMeta.buttonConfirmColor),
     buttonCancelLabel: cfg?.button_cancel_label || baseMeta.buttonCancelLabel,
@@ -208,25 +225,49 @@ function buildFlexMessage(data, orderCode, orderId, cfg, accountMeta = null) {
   const exchangeRateLabel = typeof data.exchangeRate === 'number'
     ? `${parseFloat(data.exchangeRate.toFixed(2))} ${(data.exchangeRateCurrency || 'CNY')}`.trim()
     : '-';
+  const isImportInvoice = data.templateType === 'IMPORT_INVOICE';
+  const isCustomMessage = data.templateType === 'RECEIPT';
+  const headerTitle = isCustomMessage
+    ? (data.customHeaderTitle || 'Jawanda Cargo')
+    : meta.title;
+  const headerSubtitle = isCustomMessage
+    ? (data.customHeaderSubtitle || 'นำเข้าสินค้าจากจีนแบบครบวงจร')
+    : orderCode;
   const introText = interpolateTemplateText(meta.bodyIntroText, {
     customerName: data.customerName,
+    customerCode: data.customerCode,
     netTotal: data.netTotal,
   });
 
-  const rows = [
-    [meta.detailLabels.orderCode, orderCode],
-    [meta.detailLabels.documentType, meta.codePrefix],
-    [meta.detailLabels.accountType, accountMeta?.label || data.accountType || '-'],
-    [meta.detailLabels.accountName, accountMeta?.account_name || '-'],
-    [meta.detailLabels.accountNumber, accountMeta?.account_number || '-'],
-    [meta.detailLabels.amount, fmt(data.amount)],
-    [meta.detailLabels.exchangeRate, exchangeRateLabel],
-    [meta.detailLabels.total, fmt(data.totalAmount)],
-  ];
+  const amountText = data.templateType === 'IMPORT_INVOICE'
+    ? fmtBaht(data.amount)
+    : data.templateType === 'CONFIRM'
+      ? fmtYuan(data.amount)
+      : fmtBaht(data.amount);
 
-  if (data.applyVat) rows.push([meta.detailLabels.vat, fmt(data.vatAmount || 0)]);
-  if (data.applyWithholding) rows.push([meta.detailLabels.withholding, fmt(data.withholdingAmount || 0)]);
-  if (typeof data.netTotal === 'number') rows.push([meta.detailLabels.netTotal, fmt(data.netTotal)]);
+  const rows = [];
+  if (!isCustomMessage) {
+    rows.push(
+      [meta.detailLabels.orderCode, orderCode],
+      [meta.detailLabels.documentType, meta.codePrefix],
+      [meta.detailLabels.accountType, accountMeta?.label || data.accountType || '-'],
+      [meta.detailLabels.accountName, accountMeta?.account_name || '-'],
+      [meta.detailLabels.accountNumber, accountMeta?.account_number || '-'],
+      [meta.detailLabels.amount, amountText],
+    );
+  }
+  if (!isImportInvoice && !isCustomMessage) {
+    rows.push(
+      [meta.detailLabels.exchangeRate, exchangeRateLabel],
+      [meta.detailLabels.total, fmtBaht(data.totalAmount)],
+    );
+  }
+
+  if (!isCustomMessage) {
+    if (data.applyVat) rows.push([meta.detailLabels.vat, fmtBaht(data.vatAmount || 0)]);
+    if (data.applyWithholding) rows.push([meta.detailLabels.withholding, fmtBaht(data.withholdingAmount || 0)]);
+    if (typeof data.netTotal === 'number') rows.push([meta.detailLabels.netTotal, fmtBaht(data.netTotal)]);
+  }
 
   const bankNameLabel = meta.detailLabels.accountName;
   const bankNumberLabel = meta.detailLabels.accountNumber;
@@ -235,21 +276,22 @@ function buildFlexMessage(data, orderCode, orderId, cfg, accountMeta = null) {
   const contents = rows.flatMap(([label, value], i) => {
     const isBankInfo = label === bankTypeLabel || label === bankNameLabel || label === bankNumberLabel;
     const isNameOrNumber = label === bankNameLabel || label === bankNumberLabel;
+    const isNetTotal = label === meta.detailLabels.netTotal;
     const row = {
       type: 'box',
       layout: 'baseline',
       spacing: 'sm',
       contents: [
-        { type: 'text', text: label, color: meta.bodyLabelColor, size: 'sm', flex: 4, weight: isBankInfo ? 'bold' : 'regular' },
+        { type: 'text', text: label, color: meta.bodyLabelColor, size: isNetTotal ? 'md' : 'sm', flex: 4, weight: isBankInfo || isNetTotal ? 'bold' : 'regular' },
         {
           type: 'text',
           text: value,
           wrap: true,
           color: isNameOrNumber ? meta.accent : meta.bodyTextColor,
-          size: isNameOrNumber ? 'md' : 'sm',
+          size: isNameOrNumber ? 'md' : (isNetTotal ? 'lg' : 'sm'),
           flex: 6,
           align: 'end',
-          weight: isNameOrNumber ? 'bold' : 'regular',
+          weight: isNameOrNumber || isNetTotal ? 'bold' : 'regular',
           decoration: isNameOrNumber ? 'underline' : 'none',
         },
       ],
@@ -298,24 +340,33 @@ function buildFlexMessage(data, orderCode, orderId, cfg, accountMeta = null) {
     );
   }
 
-  if (data.templateType === 'RECEIPT' && meta.buttonReceiptUrl) {
+  if (data.templateType === 'RECEIPT') {
+    const receiptLabel = meta.buttonReceiptLabel || 'คลิกที่นี้';
+    const action = meta.buttonReceiptUrl
+      ? {
+        type: 'uri',
+        label: receiptLabel,
+        uri: meta.buttonReceiptUrl,
+      }
+      : {
+        type: 'postback',
+        label: receiptLabel,
+        data: 'type=CUSTOM_BUTTON&action=NO_URL',
+        displayText: receiptLabel,
+      };
     footerContents.push({
       type: 'button',
       style: 'primary',
       height: 'sm',
       margin: 'md',
       color: meta.accent,
-      action: {
-        type: 'uri',
-        label: meta.buttonReceiptLabel,
-        uri: meta.buttonReceiptUrl,
-      },
+      action,
     });
   }
 
   return {
     type: 'flex',
-    altText: `${meta.title} ${orderCode}`,
+    altText: `${headerTitle} ${headerSubtitle}`,
     contents: {
       type: 'bubble',
       body: {
@@ -330,8 +381,8 @@ function buildFlexMessage(data, orderCode, orderId, cfg, accountMeta = null) {
             backgroundColor: meta.accent,
             paddingAll: '14px',
             contents: [
-              { type: 'text', text: meta.title, color: meta.headerTextColor, size: 'md', weight: 'bold' },
-              { type: 'text', text: orderCode, color: meta.headerTextColor, size: 'xs', margin: 'sm' },
+              { type: 'text', text: headerTitle, color: meta.headerTextColor, size: 'md', weight: 'bold' },
+              { type: 'text', text: headerSubtitle, color: meta.headerTextColor, size: 'xs', margin: 'sm' },
             ],
           },
           {
@@ -350,7 +401,7 @@ function buildFlexMessage(data, orderCode, orderId, cfg, accountMeta = null) {
                   weight: 'bold',
                 }]
                 : []),
-              ...(introText
+              ...(introText && contents.length > 0
                 ? [{
                   type: 'separator',
                   margin: 'md',
@@ -383,18 +434,45 @@ router.post('/send', requireAuth, async (req, res) => {
     });
     return res.status(400).json({ error: parse.error.flatten() });
   }
-  const data = parse.data;
-  if (
-    data.templateType === 'CONFIRM'
-    || data.templateType === 'IMPORT_INVOICE'
-    || data.templateType === 'RECEIPT'
-  ) {
+  let data = parse.data;
+  const looksLikeCustomContent = (() => {
+    const intro = (data.bodyIntroText || '').trim();
+    const footer = (data.footerNote || '').trim();
+    const startsWithCustomIntro = intro.startsWith('ข้อความสำหรับ');
+    const isReceiptFooter = footer === RECEIPT_FOOTER_DEFAULT || footer === LEGACY_RECEIPT_FOOTER;
+    const mentionsImportInvoice = intro.includes('ใบแจ้งหนี้นำเข้า') || intro.toLowerCase().includes('import invoice');
+    return (startsWithCustomIntro || isReceiptFooter) && !mentionsImportInvoice;
+  })();
+  const looksLikeCustomMessage = data.customMode === true || [
+    data.customHeaderTitle,
+    data.customHeaderSubtitle,
+    data.receiptButtonLabel,
+    data.receiptButtonUrl,
+  ].some((value) => typeof value === 'string' && value.trim().length > 0);
+
+  // Backward/compat safety:
+  // if frontend sends custom-message fields (or explicit customMode) but wrong templateType, coerce to RECEIPT.
+  if (data.templateType !== 'RECEIPT' && (looksLikeCustomMessage || looksLikeCustomContent)) {
+    data = { ...data, templateType: 'RECEIPT' };
+  }
+
+  if (data.templateType === 'CONFIRM') {
     if (
       typeof data.amount !== 'number'
       || typeof data.exchangeRate !== 'number'
       || typeof data.totalAmount !== 'number'
     ) {
-      return res.status(400).json({ error: 'Document requires amount, exchange rate, and total amount' });
+      return res.status(400).json({
+        error: 'CONFIRM requires amount, exchange rate, and total amount',
+      });
+    }
+  }
+
+  if (data.templateType === 'IMPORT_INVOICE') {
+    if (typeof data.amount !== 'number') {
+      return res.status(400).json({
+        error: 'IMPORT_INVOICE requires amount',
+      });
     }
   }
 
@@ -403,7 +481,7 @@ router.post('/send', requireAuth, async (req, res) => {
     await client.query('BEGIN');
 
     const custResult = await client.query(
-      'SELECT id, line_uid, display_name FROM customers WHERE id = $1',
+      'SELECT id, line_uid, display_name, customer_code FROM customers WHERE id = $1',
       [data.customerId],
     );
     if (custResult.rowCount === 0) {
@@ -447,6 +525,7 @@ router.post('/send', requireAuth, async (req, res) => {
     let orderCode;
     let payloadForMessage = {
       ...data,
+      customerCode: custResult.rows[0].customer_code || undefined,
       customerName: custResult.rows[0].display_name || undefined,
     };
 
@@ -471,7 +550,7 @@ router.post('/send', requireAuth, async (req, res) => {
       );
       orderId = orderResult.rows[0].id;
       orderCode = orderResult.rows[0].order_code;
-    } else {
+    } else if (data.templateType === 'IMPORT_INVOICE') {
       if (!data.orderId) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'orderId is required for this document type' });
@@ -525,6 +604,7 @@ router.post('/send', requireAuth, async (req, res) => {
       orderCode = documentResult.rows[0].order_code;
       payloadForMessage = {
         ...data,
+        customerCode: custResult.rows[0].customer_code || undefined,
         customerName: custResult.rows[0].display_name || undefined,
       };
 
@@ -546,6 +626,15 @@ router.post('/send', requireAuth, async (req, res) => {
          WHERE id = $1`,
         [order.id, STAGE_BY_TEMPLATE[data.templateType]],
       );
+    } else {
+      orderId = null;
+      orderCode = await generateOrderCode(client, data.templateType);
+      payloadForMessage = {
+        ...data,
+        customerCode: custResult.rows[0].customer_code || undefined,
+        customerName: custResult.rows[0].display_name || undefined,
+      };
+      accountMeta = null;
     }
 
     const flexMessage = buildFlexMessage(payloadForMessage, orderCode, orderId, cfg, accountMeta);
