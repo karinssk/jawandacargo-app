@@ -54,6 +54,7 @@ function LandingInner() {
       utm_campaign: searchParams.get('utm_campaign') || undefined,
       utm_content: searchParams.get('utm_content') || undefined,
       utm_term: searchParams.get('utm_term') || undefined,
+      fbclid: searchParams.get('fbclid') || undefined,
       source_url: window.location.href,
     };
 
