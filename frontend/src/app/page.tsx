@@ -159,7 +159,7 @@ function LandingInner() {
         });
       }
     } catch (err) { console.error('[pre-follow]', err); }
-    window.open(LINE_OA_URL, '_blank');
+    window.location.href = LINE_OA_URL;
     setAdding(false);
   }
 
@@ -182,7 +182,7 @@ function LandingInner() {
     } catch (err) {
       console.error('[pre-follow custom]', err);
     }
-    window.open(customUrl, '_blank');
+    window.location.href = customUrl;
     setAdding(false);
   }
 
