@@ -895,6 +895,7 @@ export default function AdminLandingPage() {
                             background: 'linear-gradient(135deg,#00b900,#06c755)',
                             boxShadow: '0 6px 20px rgba(0,0,0,0.3), 0 0 0 2px rgba(255,255,255,0.35)',
                             textAlign: 'center',
+                            ...(isSelected ? (editForm.block_height_px ? { height: editForm.block_height_px } : {}) : (block.block_height_px ? { height: block.block_height_px } : {})),
                           }}
                         >
                           <span style={{ background: '#fff', borderRadius: 999, width: 18, height: 18, color: '#06c755', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>+</span>

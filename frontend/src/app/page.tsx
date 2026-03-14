@@ -263,12 +263,10 @@ function LandingInner() {
             const leftPct = Math.min(95, Math.max(0, Number(block.button_left_pct ?? 50)));
             const topPct = Math.min(95, Math.max(0, Number(block.button_top_pct ?? 44)));
             const widthPct = Math.min(95, Math.max(8, Number(block.button_width_pct ?? 42)));
-            const heightStyle = block.block_height_px ? { height: block.block_height_px, objectFit: 'cover' as const } : { height: 'auto' };
-
             return (
               <div key={block.id} style={{ position: 'relative', width: '100%', lineHeight: 0 }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={block.image_url} alt={block.label || ''} style={{ width: '100%', display: 'block', ...heightStyle }} />
+                <img src={block.image_url} alt={block.label || ''} style={{ width: '100%', display: 'block', height: 'auto' }} />
                 <div
                   style={{
                     position: 'absolute',
@@ -283,7 +281,7 @@ function LandingInner() {
                     className="line-dynamic-hero-btn"
                     onClick={() => handleDynamicAddLine(block)}
                     disabled={adding || loading}
-                    style={{ opacity: adding ? 0.7 : 1, cursor: adding || loading ? 'not-allowed' : 'pointer' }}
+                    style={{ opacity: adding ? 0.7 : 1, cursor: adding || loading ? 'not-allowed' : 'pointer', ...(block.block_height_px ? { height: block.block_height_px } : {}) }}
                   >
                     <span style={{ background: '#fff', borderRadius: 999, width: 30, height: 30, color: '#06c755', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0, fontSize: 22 }}>+</span>
                     <span style={{ lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
