@@ -31,6 +31,7 @@ type Block = {
   button_left_pct: number | null;
   button_top_pct: number | null;
   button_width_pct: number | null;
+  block_height_px: number | null;
   sort_order: number;
 };
 
@@ -262,11 +263,12 @@ function LandingInner() {
             const leftPct = Math.min(95, Math.max(0, Number(block.button_left_pct ?? 50)));
             const topPct = Math.min(95, Math.max(0, Number(block.button_top_pct ?? 44)));
             const widthPct = Math.min(95, Math.max(8, Number(block.button_width_pct ?? 42)));
+            const heightStyle = block.block_height_px ? { height: block.block_height_px, objectFit: 'cover' as const } : { height: 'auto' };
 
             return (
               <div key={block.id} style={{ position: 'relative', width: '100%', lineHeight: 0 }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={block.image_url} alt={block.label || ''} style={{ width: '100%', display: 'block', height: 'auto' }} />
+                <img src={block.image_url} alt={block.label || ''} style={{ width: '100%', display: 'block', ...heightStyle }} />
                 <div
                   style={{
                     position: 'absolute',

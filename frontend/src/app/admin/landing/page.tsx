@@ -234,6 +234,7 @@ type Block = {
   button_left_pct: number | null;
   button_top_pct: number | null;
   button_width_pct: number | null;
+  block_height_px: number | null;
   sort_order: number;
   is_active: boolean;
 };
@@ -246,6 +247,7 @@ type EditForm = {
   button_left_pct: number;
   button_top_pct: number;
   button_width_pct: number;
+  block_height_px: number | null;
   is_active: boolean;
 };
 
@@ -289,6 +291,7 @@ function normalizeBlock(raw: unknown): Block | null {
     button_left_pct: typeof item.button_left_pct === 'number' ? item.button_left_pct : 50,
     button_top_pct: typeof item.button_top_pct === 'number' ? item.button_top_pct : 44,
     button_width_pct: typeof item.button_width_pct === 'number' ? item.button_width_pct : 42,
+    block_height_px: typeof item.block_height_px === 'number' ? item.block_height_px : null,
     sort_order: typeof item.sort_order === 'number' ? item.sort_order : 0,
     is_active: typeof item.is_active === 'boolean' ? item.is_active : true,
   };
@@ -397,6 +400,7 @@ export default function AdminLandingPage() {
     button_left_pct: 50,
     button_top_pct: 44,
     button_width_pct: 42,
+    block_height_px: null,
     is_active: true,
   });
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -442,6 +446,7 @@ export default function AdminLandingPage() {
         button_left_pct: selectedBlock.button_left_pct ?? 50,
         button_top_pct: selectedBlock.button_top_pct ?? 44,
         button_width_pct: selectedBlock.button_width_pct ?? 42,
+        block_height_px: selectedBlock.block_height_px ?? null,
         is_active: selectedBlock.is_active,
       });
     }
@@ -493,6 +498,7 @@ export default function AdminLandingPage() {
         button_left_pct: editForm.button_left_pct,
         button_top_pct: editForm.button_top_pct,
         button_width_pct: editForm.button_width_pct,
+        block_height_px: editForm.block_height_px,
         is_active: editForm.is_active,
       };
       const res = await fetch(`/api/landing-blocks/${selectedId}`, {
@@ -1179,6 +1185,19 @@ export default function AdminLandingPage() {
                   step={1}
                   value={editForm.button_width_pct}
                   onChange={(e) => setEditForm((f) => ({ ...f, button_width_pct: Number(e.target.value) }))}
+                  style={{ width: '100%' }}
+                />
+
+                <label style={{ display: 'block', fontSize: 11, color: '#6b7280', marginTop: 4 }}>
+                  Height: {editForm.block_height_px ? `${editForm.block_height_px}px` : 'Auto'}
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={800}
+                  step={10}
+                  value={editForm.block_height_px ?? 0}
+                  onChange={(e) => setEditForm((f) => ({ ...f, block_height_px: Number(e.target.value) || null }))}
                   style={{ width: '100%' }}
                 />
               </div>
