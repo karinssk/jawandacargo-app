@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import React, { useEffect, useRef, useState } from 'react';
+import Swal from 'sweetalert2';
 
 function SvgImageIcon({ size = 18, color = 'currentColor' }: { size?: number; color?: string }) {
   return (
@@ -562,14 +563,14 @@ export default function AdminLandingPage() {
       const updated = normalizeBlock(payload);
       if (!updated) throw new Error('รูปแบบข้อมูล block ไม่ถูกต้อง');
       setBlocks((prev) => prev.map((b) => (b.id === selectedId ? updated : b)));
-      setSaveMsg('Saved');
-      setTimeout(() => setSaveMsg(''), 2000);
+      Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, timerProgressBar: true })
+        .fire({ icon: 'success', title: 'บันทึกสำเร็จ' });
     } catch (err) {
-      if (err instanceof Error && err.message === 'payload-too-large') {
-        setError('ข้อมูลรูปภาพใหญ่เกินไป (413) กรุณาลดขนาดรูป หรือใช้ URL รูปแทนการอัปโหลดไฟล์');
-      } else {
-        setError(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ');
-      }
+      const msg = err instanceof Error && err.message === 'payload-too-large'
+        ? 'ข้อมูลรูปภาพใหญ่เกินไป (413) กรุณาลดขนาดรูป'
+        : (err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ');
+      Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true })
+        .fire({ icon: 'error', title: msg });
     }
     finally { setSaving(false); }
   }
@@ -952,12 +953,13 @@ export default function AdminLandingPage() {
                                 background: 'linear-gradient(135deg,#00b900,#06c755)',
                                 boxShadow: '0 6px 20px rgba(0,0,0,0.3), 0 0 0 2px rgba(255,255,255,0.35)',
                                 textAlign: 'center',
+                                overflow: 'visible',
                                 ...(isSelected ? (editForm.block_height_px ? { height: editForm.block_height_px } : {}) : (block.block_height_px ? { height: block.block_height_px } : {})),
                                 ...(isSelected ? (editForm.button_font_size_px ? { fontSize: editForm.button_font_size_px } : {}) : (block.button_font_size_px ? { fontSize: block.button_font_size_px } : {})),
                               }}
                             >
                               <span style={{ background: '#fff', borderRadius: 999, width: 28, height: 28, color: '#06c755', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0, fontSize: 20 }}>+</span>
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <span>
                                 {(isSelected ? editForm.label : block.label) || '@JAWANDACARGO'}
                               </span>
                             </div>
