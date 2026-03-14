@@ -1,8 +1,4 @@
 {
   "/page": "app/page.js",
-  "/admin/page": "app/admin/page.js",
-  "/admin/customers/page": "app/admin/customers/page.js",
-  "/admin/messages/send/page": "app/admin/messages/send/page.js",
-  "/admin/messages/history/page": "app/admin/messages/history/page.js",
   "/admin/landing/page": "app/admin/landing/page.js"
 }

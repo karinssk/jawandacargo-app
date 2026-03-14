@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 function SvgImageIcon({ size = 18, color = 'currentColor' }: { size?: number; color?: string }) {
   return (
@@ -235,6 +235,7 @@ type Block = {
   button_top_pct: number | null;
   button_width_pct: number | null;
   block_height_px: number | null;
+  button_font_size_px: number | null;
   sort_order: number;
   is_active: boolean;
 };
@@ -248,6 +249,7 @@ type EditForm = {
   button_top_pct: number;
   button_width_pct: number;
   block_height_px: number | null;
+  button_font_size_px: number | null;
   is_active: boolean;
 };
 
@@ -292,6 +294,7 @@ function normalizeBlock(raw: unknown): Block | null {
     button_top_pct: typeof item.button_top_pct === 'number' ? item.button_top_pct : 44,
     button_width_pct: typeof item.button_width_pct === 'number' ? item.button_width_pct : 42,
     block_height_px: typeof item.block_height_px === 'number' ? item.block_height_px : null,
+    button_font_size_px: typeof item.button_font_size_px === 'number' ? item.button_font_size_px : null,
     sort_order: typeof item.sort_order === 'number' ? item.sort_order : 0,
     is_active: typeof item.is_active === 'boolean' ? item.is_active : true,
   };
@@ -401,6 +404,7 @@ export default function AdminLandingPage() {
     button_top_pct: 44,
     button_width_pct: 42,
     block_height_px: null,
+    button_font_size_px: null,
     is_active: true,
   });
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -411,7 +415,48 @@ export default function AdminLandingPage() {
   const [error, setError] = useState('');
   const [uploadingImg, setUploadingImg] = useState(false);
 
+  const btnDragRef = useRef<{ containerEl: HTMLElement; startX: number; startY: number; startLeft: number; startTop: number; scale: number } | null>(null);
+
+  const handleBtnDragStart = (e: React.MouseEvent, containerEl: HTMLElement) => {
+    e.preventDefault();
+    btnDragRef.current = {
+      containerEl,
+      startX: e.clientX,
+      startY: e.clientY,
+      startLeft: editForm.button_left_pct,
+      startTop: editForm.button_top_pct,
+      scale: previewScale,
+    };
+    const onMove = (ev: MouseEvent) => {
+      if (!btnDragRef.current) return;
+      const rect = btnDragRef.current.containerEl.getBoundingClientRect();
+      const effectiveW = rect.width / btnDragRef.current.scale;
+      const effectiveH = rect.height / btnDragRef.current.scale;
+      const dx = ((ev.clientX - btnDragRef.current.startX) / effectiveW) * 100;
+      const dy = ((ev.clientY - btnDragRef.current.startY) / effectiveH) * 100;
+      const newLeft = Math.min(95, Math.max(0, btnDragRef.current.startLeft + dx));
+      const newTop = Math.min(95, Math.max(0, btnDragRef.current.startTop + dy));
+      setEditForm((f) => ({ ...f, button_left_pct: Math.round(newLeft * 10) / 10, button_top_pct: Math.round(newTop * 10) / 10 }));
+    };
+    const onUp = () => {
+      btnDragRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
   const selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
+
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const [previewWidth, setPreviewWidth] = useState(0);
+  useEffect(() => {
+    if (!previewContainerRef.current) return;
+    const ro = new ResizeObserver((entries) => setPreviewWidth(entries[0].contentRect.width));
+    ro.observe(previewContainerRef.current);
+    return () => ro.disconnect();
+  }, []);
 
   async function load() {
     try {
@@ -447,6 +492,7 @@ export default function AdminLandingPage() {
         button_top_pct: selectedBlock.button_top_pct ?? 44,
         button_width_pct: selectedBlock.button_width_pct ?? 42,
         block_height_px: selectedBlock.block_height_px ?? null,
+        button_font_size_px: selectedBlock.button_font_size_px ?? null,
         is_active: selectedBlock.is_active,
       });
     }
@@ -499,6 +545,7 @@ export default function AdminLandingPage() {
         button_top_pct: editForm.button_top_pct,
         button_width_pct: editForm.button_width_pct,
         block_height_px: editForm.block_height_px,
+        button_font_size_px: editForm.button_font_size_px,
         is_active: editForm.is_active,
       };
       const res = await fetch(`/api/landing-blocks/${selectedId}`, {
@@ -701,8 +748,11 @@ export default function AdminLandingPage() {
   );
 
   // ─── Center Preview ──────────────────────────────────────────────────────────
+  const PREVIEW_VIRTUAL_W = 960;
+  const previewScale = previewWidth > 0 ? Math.min(1, previewWidth / PREVIEW_VIRTUAL_W) : 1;
+
   const CenterPreview = (
-    <div style={{ flex: 1, overflowY: 'auto', background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}>
+    <div ref={previewContainerRef} style={{ flex: 1, overflowY: 'auto', background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}>
       <div>
         {/* Simulated Header */}
         <div style={{ background: '#1a2744', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -863,50 +913,60 @@ export default function AdminLandingPage() {
               {block.type === 'hero-with-dynamic-add-line' && (
                 ((isSelected ? (editForm.image_url || block.image_url) : block.image_url))
                   ? (
-                    <div style={{ position: 'relative', lineHeight: 0 }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={(isSelected ? (editForm.image_url || block.image_url) : block.image_url) || ''}
-                        alt={(isSelected ? (editForm.label || block.label) : block.label) || ''}
-                        style={{ width: '100%', display: 'block' }}
-                      />
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: `${Math.min(95, Math.max(0, Number(isSelected ? editForm.button_top_pct : (block.button_top_pct ?? 44))))}%`,
-                          left: `${Math.min(95, Math.max(0, Number(isSelected ? editForm.button_left_pct : (block.button_left_pct ?? 50))))}%`,
-                          width: `${Math.min(95, Math.max(8, Number(isSelected ? editForm.button_width_pct : (block.button_width_pct ?? 42))))}%`,
-                          transform: 'translate(-50%, -50%)',
-                          zIndex: 2,
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 8,
-                            width: '100%',
-                            borderRadius: 999,
-                            padding: '8px 14px',
-                            color: '#fff',
-                            fontSize: 13,
-                            fontWeight: 900,
-                            background: 'linear-gradient(135deg,#00b900,#06c755)',
-                            boxShadow: '0 6px 20px rgba(0,0,0,0.3), 0 0 0 2px rgba(255,255,255,0.35)',
-                            textAlign: 'center',
-                            ...(isSelected ? (editForm.block_height_px ? { height: editForm.block_height_px } : {}) : (block.block_height_px ? { height: block.block_height_px } : {})),
-                          }}
-                        >
-                          <span style={{ background: '#fff', borderRadius: 999, width: 18, height: 18, color: '#06c755', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>+</span>
-                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {(isSelected ? editForm.label : block.label) || '@JAWANDACARGO'}
+                    <div style={{ overflow: 'hidden', lineHeight: 0 }}>
+                      <div style={{ width: PREVIEW_VIRTUAL_W, zoom: previewScale }}>
+                        <div style={{ position: 'relative', lineHeight: 0 }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={(isSelected ? (editForm.image_url || block.image_url) : block.image_url) || ''}
+                            alt={(isSelected ? (editForm.label || block.label) : block.label) || ''}
+                            style={{ width: '100%', display: 'block' }}
+                          />
+                          <div
+                            onMouseDown={isSelected ? (e) => {
+                              const container = (e.currentTarget as HTMLElement).parentElement!;
+                              handleBtnDragStart(e, container);
+                            } : undefined}
+                            style={{
+                              position: 'absolute',
+                              top: `${Math.min(95, Math.max(0, Number(isSelected ? editForm.button_top_pct : (block.button_top_pct ?? 44))))}%`,
+                              left: `${Math.min(95, Math.max(0, Number(isSelected ? editForm.button_left_pct : (block.button_left_pct ?? 50))))}%`,
+                              width: `${Math.min(95, Math.max(8, Number(isSelected ? editForm.button_width_pct : (block.button_width_pct ?? 42))))}%`,
+                              transform: 'translate(-50%, -50%)',
+                              zIndex: 2,
+                              cursor: isSelected ? 'grab' : 'default',
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 8,
+                                width: '100%',
+                                borderRadius: 999,
+                                padding: '8px 14px',
+                                color: '#fff',
+                                fontSize: 18,
+                                fontWeight: 900,
+                                background: 'linear-gradient(135deg,#00b900,#06c755)',
+                                boxShadow: '0 6px 20px rgba(0,0,0,0.3), 0 0 0 2px rgba(255,255,255,0.35)',
+                                textAlign: 'center',
+                                ...(isSelected ? (editForm.block_height_px ? { height: editForm.block_height_px } : {}) : (block.block_height_px ? { height: block.block_height_px } : {})),
+                                ...(isSelected ? (editForm.button_font_size_px ? { fontSize: editForm.button_font_size_px } : {}) : (block.button_font_size_px ? { fontSize: block.button_font_size_px } : {})),
+                              }}
+                            >
+                              <span style={{ background: '#fff', borderRadius: 999, width: 28, height: 28, color: '#06c755', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0, fontSize: 20 }}>+</span>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {(isSelected ? editForm.label : block.label) || '@JAWANDACARGO'}
+                              </span>
+                            </div>
+                          </div>
+                          <span style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(14,165,233,0.92)', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '2px 6px' }}>
+                            HERO DYNAMIC ADD LINE
                           </span>
                         </div>
                       </div>
-                      <span style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(14,165,233,0.92)', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '2px 6px' }}>
-                        HERO DYNAMIC ADD LINE
-                      </span>
                     </div>
                   )
                   : (
@@ -1199,6 +1259,19 @@ export default function AdminLandingPage() {
                   step={10}
                   value={editForm.block_height_px ?? 0}
                   onChange={(e) => setEditForm((f) => ({ ...f, block_height_px: Number(e.target.value) || null }))}
+                  style={{ width: '100%' }}
+                />
+
+                <label style={{ display: 'block', fontSize: 11, color: '#6b7280', marginTop: 4 }}>
+                  Font Size: {editForm.button_font_size_px ? `${editForm.button_font_size_px}px` : 'Auto'}
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={72}
+                  step={1}
+                  value={editForm.button_font_size_px ?? 0}
+                  onChange={(e) => setEditForm((f) => ({ ...f, button_font_size_px: Number(e.target.value) || null }))}
                   style={{ width: '100%' }}
                 />
               </div>

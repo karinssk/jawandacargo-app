@@ -32,6 +32,7 @@ type Block = {
   button_top_pct: number | null;
   button_width_pct: number | null;
   block_height_px: number | null;
+  button_font_size_px: number | null;
   sort_order: number;
 };
 
@@ -263,8 +264,18 @@ function LandingInner() {
             const leftPct = Math.min(95, Math.max(0, Number(block.button_left_pct ?? 50)));
             const topPct = Math.min(95, Math.max(0, Number(block.button_top_pct ?? 44)));
             const widthPct = Math.min(95, Math.max(8, Number(block.button_width_pct ?? 42)));
+            // Font size scales with button width so text always fits responsively.
+            // button_font_size_px is treated as "px at 960px viewport baseline", converted to vw.
+            const baseFontVw = block.button_font_size_px
+              ? (block.button_font_size_px / 960) * 100
+              : (widthPct * 0.06); // auto: ~6% of button width in vw
+            const fontSizeStyle = `clamp(11px, ${baseFontVw.toFixed(2)}vw, ${(block.button_font_size_px ?? 64)}px)`;
+            const iconSize = `clamp(20px, ${(baseFontVw * 1.6).toFixed(2)}vw, ${(block.button_font_size_px ? block.button_font_size_px * 1.6 : 48)}px)`;
             return (
               <div key={block.id} style={{ position: 'relative', width: '100%', lineHeight: 0 }}>
+                {block.block_height_px && (
+                  <style>{`@media (min-width: 768px) { #dyn-btn-${block.id} { height: ${block.block_height_px}px; } }`}</style>
+                )}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={block.image_url} alt={block.label || ''} style={{ width: '100%', display: 'block', height: 'auto' }} />
                 <div
@@ -278,13 +289,14 @@ function LandingInner() {
                   }}
                 >
                   <button
+                    id={`dyn-btn-${block.id}`}
                     className="line-dynamic-hero-btn"
                     onClick={() => handleDynamicAddLine(block)}
                     disabled={adding || loading}
-                    style={{ opacity: adding ? 0.7 : 1, cursor: adding || loading ? 'not-allowed' : 'pointer', ...(block.block_height_px ? { height: block.block_height_px } : {}) }}
+                    style={{ opacity: adding ? 0.7 : 1, cursor: adding || loading ? 'not-allowed' : 'pointer', fontSize: fontSizeStyle }}
                   >
-                    <span style={{ background: '#fff', borderRadius: 999, width: 30, height: 30, color: '#06c755', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0, fontSize: 22 }}>+</span>
-                    <span style={{ lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <span style={{ background: '#fff', borderRadius: 999, width: iconSize, height: iconSize, color: '#06c755', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0, fontSize: `calc(${iconSize} * 0.75)` }}>+</span>
+                    <span style={{ lineHeight: 1.2 }}>
                       {adding ? 'กำลังเปิด...' : (block.label || '@JAWANDACARGO')}
                     </span>
                   </button>
